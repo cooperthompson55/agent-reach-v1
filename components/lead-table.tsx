@@ -695,6 +695,34 @@ export default function LeadTable() {
     }
   }
 
+  // Add a function to remove email or instagram
+  const removeLeadField = async (leadId: string, field: 'agent_email' | 'instagram_account') => {
+    try {
+      const updates: any = {};
+      updates[field] = null;
+      const { error } = await supabase
+        .from('listings')
+        .update(updates)
+        .eq('id', leadId);
+      if (error) throw error;
+      setLeads((currentLeads) =>
+        currentLeads.map((lead) =>
+          lead.id === leadId ? { ...lead, [field]: null } : lead
+        )
+      );
+      toast({
+        title: 'Removed',
+        description: `${field === 'agent_email' ? 'Email' : 'Instagram'} removed.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: `Failed to remove ${field === 'agent_email' ? 'email' : 'Instagram'}.`,
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col w-full">
       <div className="flex flex-col gap-6 p-6">
@@ -1191,14 +1219,23 @@ export default function LeadTable() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                                  <span className="font-medium">Email:</span>{" "}
-                                      {lead.agent_email ? (
-                                        <a
-                                          href={`mailto:${lead.agent_email}`}
-                                          className="text-foreground hover:text-primary hover:underline transition-colors"
-                                        >
-                                          {lead.agent_email}
-                                    </a>
+                                  <span className="font-medium">Email:</span>{' '}
+                                  {lead.agent_email ? (
+                                    <>
+                                      <a
+                                        href={`mailto:${lead.agent_email}`}
+                                        className="text-foreground hover:text-primary hover:underline transition-colors"
+                                      >
+                                        {lead.agent_email}
+                                      </a>
+                                      <button
+                                        onClick={() => removeLeadField(lead.id, 'agent_email')}
+                                        className="ml-1 text-muted-foreground hover:text-destructive"
+                                        title="Remove email"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </>
                                   ) : (
                                     <span className="text-muted-foreground">Not available</span>
                                   )}
@@ -1216,14 +1253,15 @@ export default function LeadTable() {
                                 </div>
                                   <div className="flex items-center gap-2">
                                     <Instagram className="h-3.5 w-3.5 text-muted-foreground" />
-                                    <span className="font-medium">Instagram:</span>{" "}
-                                      {lead.instagram_account ? (
-                                    <a
+                                    <span className="font-medium">Instagram:</span>{' '}
+                                    {lead.instagram_account ? (
+                                      <>
+                                        <a
                                           href={lead.instagram_account.startsWith('http') ? lead.instagram_account : `https://www.instagram.com/${lead.instagram_account}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-primary hover:underline"
-                                    >
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline"
+                                        >
                                           {(() => {
                                             const acct = lead.instagram_account;
                                             if (!acct) return null;
@@ -1237,10 +1275,18 @@ export default function LeadTable() {
                                             }
                                           })()}
                                         </a>
-                                      ) : (
-                                        <span className="text-muted-foreground">Not available</span>
-                                      )}
-                                    </div>
+                                        <button
+                                          onClick={() => removeLeadField(lead.id, 'instagram_account')}
+                                          className="ml-1 text-muted-foreground hover:text-destructive"
+                                          title="Remove Instagram"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span className="text-muted-foreground">Not available</span>
+                                    )}
+                                  </div>
                               </div>
                             </div>
                             <div>

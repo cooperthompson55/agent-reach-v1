@@ -1201,25 +1201,25 @@ export default function LeadTable() {
                       <div
                         className={`border-t border-muted transition-all duration-300 ease-in-out ${
                           expandedRows[lead.id]
-                            ? "max-h-[500px] opacity-100 transform-none"
+                            ? "max-h-[80vh] md:max-h-[500px] overflow-auto md:overflow-visible opacity-100 transform-none"
                             : "max-h-0 opacity-0 transform -translate-y-4 overflow-hidden"
                         }`}
                       >
-                            <div className="p-6">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="p-3 md:p-6">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 text-sm">
                             <div>
-                                  <h4 className="text-sm font-medium mb-4">Agent Details</h4>
-                                  <div className="space-y-3 text-sm">
+                                  <h4 className="text-base md:text-sm font-medium mb-2 md:mb-4">Agent Details</h4>
+                                  <div className="space-y-2 md:space-y-3 text-sm">
                                 <div className="flex items-center gap-2">
-                                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <User className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                       <span className="font-medium">Name:</span> {lead.agent_name}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Building className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Building className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                       <span className="font-medium">Brokerage:</span> {lead.brokerage_name}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Mail className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                   <span className="font-medium">Email:</span>{' '}
                                   {lead.agent_email ? (
                                     <>
@@ -1242,8 +1242,8 @@ export default function LeadTable() {
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                                  <span className="font-medium">Phone:</span>{" "}
+                                  <Phone className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
+                                  <span className="font-medium">Phone:</span>{' '}
                                       {lead.agent_phone ? (
                                         <a href={`tel:${lead.agent_phone}`} className="text-primary hover:underline">
                                           {lead.agent_phone}
@@ -1253,7 +1253,7 @@ export default function LeadTable() {
                                   )}
                                 </div>
                                   <div className="flex items-center gap-2">
-                                    <Instagram className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <Instagram className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                     <span className="font-medium">Instagram:</span>{' '}
                                     {lead.instagram_account ? (
                                       <>
@@ -1291,32 +1291,32 @@ export default function LeadTable() {
                               </div>
                             </div>
                             <div>
-                                  <h4 className="text-sm font-medium mb-4">Property Details</h4>
-                                  <div className="space-y-3 text-sm">
+                                  <h4 className="text-base md:text-sm font-medium mb-2 md:mb-4">Property Details</h4>
+                                  <div className="space-y-2 md:space-y-3 text-sm">
                                 <div className="flex items-center gap-2">
-                                  <Home className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Home className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                       <span className="font-medium">Address:</span> {lead.property_address}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <MapPin className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                       <span className="font-medium">City:</span> {lead.property_city}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <MailOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <MailOpen className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                       <span className="font-medium">Postal Code:</span> {lead.property_postal}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <DollarSign className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                       <span className="font-medium">Price:</span> {formatPrice(lead.property_price)}
                                 </div>
                               </div>
                             </div>
                             <div>
-                                  <h4 className="text-sm font-medium mb-4">Listing Details</h4>
-                                  <div className="space-y-3 text-sm">
+                                  <h4 className="text-base md:text-sm font-medium mb-2 md:mb-4">Listing Details</h4>
+                                  <div className="space-y-2 md:space-y-3 text-sm">
                                 <div className="flex items-center gap-2">
-                                  <Link className="h-3.5 w-3.5 text-muted-foreground" />
-                                  <span className="font-medium">URL:</span>{" "}
+                                  <Link className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
+                                  <span className="font-medium">URL:</span>{' '}
                                   <a
                                         href={lead.listing_url}
                                     target="_blank"
@@ -1327,23 +1327,23 @@ export default function LeadTable() {
                                   </a>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                                  <span className="font-medium">Listed:</span>{" "}
+                                  <Calendar className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
+                                  <span className="font-medium">Listed:</span>{' '}
                                       {format(new Date(lead.listing_date), "MM/dd/yyyy")}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Globe className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                       <span className="font-medium">Source:</span> {lead.listing_source}
                                 </div>
                                 <div className="flex items-start gap-2">
-                                  <StickyNote className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+                                  <StickyNote className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground mt-0.5" />
                                   <div>
-                                    <span className="font-medium">Notes:</span>{" "}
+                                    <span className="font-medium">Notes:</span>{' '}
                                     <span className="text-muted-foreground">{lead.notes || "No notes"}</span>
                                   </div>
                                 </div>
                                     <div className="flex items-center gap-2">
-                                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <Trash2 className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
                                       <Button
                                         variant="destructive"
                                         size="sm"

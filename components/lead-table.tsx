@@ -610,13 +610,14 @@ export default function LeadTable() {
   }
 
   // Update the email modal props
-  {emailModalOpen && selectedLead && (
+  {selectedLead && (
     <EmailTemplateModal
       isOpen={emailModalOpen}
       onClose={() => setEmailModalOpen(false)}
       agentName={selectedLead.agent_name}
-      agentEmail={selectedLead.agent_email || undefined}
+      agentEmail={selectedLead.agent_email || ""}
       propertyAddress={selectedLead.property_address}
+      town={selectedLead.property_city || ""}
     />
   )}
 
@@ -1438,10 +1439,11 @@ export default function LeadTable() {
           isOpen={emailModalOpen}
           onClose={() => setEmailModalOpen(false)}
           agentName={selectedLead.agent_name}
-          agentEmail={selectedLead.agent_email || undefined}
+          agentEmail={selectedLead.agent_email || ""}
           propertyAddress={selectedLead.property_address}
+          town={selectedLead.property_city || ""}
         />
-                  )}
+      )}
 
       {/* Filter Dialog */}
       <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>

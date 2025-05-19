@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -10,184 +10,124 @@ import { Textarea } from "@/components/ui/textarea"
 // Email template data
 const emailTemplates = [
   {
-    id: "final-delivery",
-    name: "Final Delivery",
-    subject: "Your Real Estate Photos Are Ready! | [Property Address]",
-    body: `Hi [Agent Name],
+    id: "pro-photos",
+    name: "Pro Photos",
+    subject: "{PropertyAddress}, {Town}",
+    body: `Hi {FirstName},
 
-I'm pleased to let you know that your real estate photos for [Property Address] are now ready!
+I saw your new listing at {PropertyAddress}—looks like a great property.
 
-You can view and download the full gallery here: [Gallery Link]
+I'm Cooper, a local real estate photographer and founder of RePhotos. I work with agents across {Town}, offering HDR photography, drone photos, 360° virtual tours, floor plans, and video—all delivered next-day.
 
-The photos highlight all the key features we discussed, and I'm confident they'll help showcase this property at its best.
+Agents I work with typically see more showings, better listing performance, and faster sales.
 
-Please let me know if you need any adjustments or have any questions.
+If you'd like, I can send over some recent examples from similar properties.
 
-Best regards,
-[Your Name]
-[Your Business]
-[Your Contact Info]`,
-  },
-  {
-    id: "booking-confirmation",
-    name: "Booking Confirmation",
-    subject: "Booking Confirmation | Real Estate Photography | [Property Address]",
-    body: `Hi [Agent Name],
-
-This email confirms your booking for real estate photography services:
-
-Property: [Property Address]
-Date: [Shoot Date]
-Time: [Shoot Time]
-Services: [Services Booked]
-
-Please ensure the property is ready for photography:
-- All lights turned on
-- Blinds/curtains open
-- Personal items tidied away
-- Vehicles removed from driveway
-
-If you need to reschedule or have any questions, please contact me at least 24 hours before the appointment.
-
-Looking forward to working with you!
-
-Best regards,
-[Your Name]
-[Your Business]
-[Your Contact Info]`,
-  },
-  {
-    id: "date-time-change",
-    name: "Date/Time Change",
-    subject: "Schedule Change Request | [Property Address] Photography",
-    body: `Hi [Agent Name],
-
-I'm writing regarding our scheduled photography session for [Property Address].
-
-[Reason for change - weather, scheduling conflict, etc.]
-
-Would it be possible to reschedule to one of the following times?
-- [Alternative Date/Time 1]
-- [Alternative Date/Time 2]
-- [Alternative Date/Time 3]
-
-Please let me know what works best for you, and I'll update our schedule accordingly.
-
-Thank you for your understanding.
-
-Best regards,
-[Your Name]
-[Your Business]
-[Your Contact Info]`,
-  },
-  {
-    id: "invoice-reminder",
-    name: "Invoice Reminder",
-    subject: "Invoice Reminder | [Property Address] Photography Services",
-    body: `Hi [Agent Name],
-
-I hope this email finds you well. This is a friendly reminder that invoice #[Invoice Number] for photography services at [Property Address] is currently outstanding.
-
-Invoice Details:
-- Invoice #: [Invoice Number]
-- Amount Due: [Amount]
-- Due Date: [Due Date]
-- Services: [Services Provided]
-
-You can make payment via [Payment Methods].
-
-If you have any questions about the invoice or if you've already sent payment, please let me know.
-
-Thank you for your business!
-
-Best regards,
-[Your Name]
-[Your Business]
-[Your Contact Info]`,
-  },
-  {
-    id: "thank-you-review",
-    name: "Thank You + Review",
-    subject: "Thank You for Your Business | [Property Address]",
-    body: `Hi [Agent Name],
-
-Thank you for choosing my services for your listing at [Property Address]. It was a pleasure working with you!
-
-I hope the photos are helping to showcase the property effectively and attract potential buyers.
-
-If you have a moment, I'd greatly appreciate if you could leave a brief review of your experience working with me. Your feedback helps my business grow and helps other agents find quality photography services.
-
-You can leave a review here: [Review Link]
-
-I look forward to working with you on future listings!
-
-Best regards,
-[Your Name]
-[Your Business]
-[Your Contact Info]`,
-  },
-  {
-    id: "custom-follow-up",
-    name: "Custom Follow-Up",
-    subject: "Following Up | Real Estate Photography Services",
-    body: `Hi [Agent Name],
-
-I hope this email finds you well. I noticed your listing at [Property Address] and wanted to reach out to introduce my real estate photography services.
-
-I specialize in creating high-quality images that help properties stand out in a competitive market. My services include:
-
-- Professional photography
-- Virtual tours
-- Aerial drone photography
-- Floor plans
-- Twilight shots
-
-I'd be happy to discuss how I can help showcase your current and future listings. Would you be available for a quick call this week?
-
-You can view my portfolio here: [Portfolio Link]
-
-Looking forward to potentially working together!
-
-Best regards,
-[Your Name]
-[Your Business]
-[Your Contact Info]`,
+Thanks,
+Cooper Thompson
+905-299-9300
+RePhotos.ca`,
   },
 ]
 
-export default function EmailTemplateModal({ isOpen, onClose, agentName, agentEmail, propertyAddress }) {
-  const [selectedTemplate, setSelectedTemplate] = useState(emailTemplates[0])
-  const [emailSubject, setEmailSubject] = useState(emailTemplates[0].subject)
-  const [emailBody, setEmailBody] = useState(emailTemplates[0].body)
+interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+}
 
-  // Apply template and replace placeholders
-  const applyTemplate = (template) => {
-    setSelectedTemplate(template)
+interface EmailTemplateModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  agentName: string;
+  agentEmail: string;
+  propertyAddress: string;
+  town?: string;
+}
 
-    let subject = template.subject
-    let body = template.body
+export default function EmailTemplateModal({ 
+  isOpen, 
+  onClose, 
+  agentName, 
+  agentEmail, 
+  propertyAddress,
+  town = "the area" // Default value if town is not provided
+}: EmailTemplateModalProps) {
+  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate>(emailTemplates[0])
+  const [emailSubject, setEmailSubject] = useState("")
+  const [emailBody, setEmailBody] = useState("")
+  const [toEmail, setToEmail] = useState(agentEmail || "")
+  const [isSending, setIsSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-    // Replace placeholders with actual data
-    subject = subject.replace("[Property Address]", propertyAddress || "")
-    body = body.replace(/\[Agent Name\]/g, agentName || "").replace(/\[Property Address\]/g, propertyAddress || "")
+  useEffect(() => {
+    setToEmail(agentEmail || "")
+  }, [agentEmail])
 
-    setEmailSubject(subject)
-    setEmailBody(body)
+  // Function to replace variables in text
+  const replaceVariables = (text: string) => {
+    const variables: Record<string, string> = {
+      FirstName: agentName?.split(" ")[0] || "",
+      AgentName: agentName || "",
+      AgentEmail: agentEmail || "",
+      PropertyAddress: propertyAddress || "",
+      Town: town || "the area",
+    }
+
+    return text.replace(/\{([^}]+)\}/g, (match, key) => {
+      return variables[key] !== undefined ? variables[key] : match
+    })
   }
 
-  const handleSendEmail = () => {
-    // In a real implementation, this would send the email
-    // For now, we'll just log the data and close the modal
-    console.log({
-      to: agentEmail,
-      subject: emailSubject,
-      body: emailBody,
-      template: selectedTemplate.id,
-    })
+  // Apply template and replace placeholders
+  const applyTemplate = (template: EmailTemplate) => {
+    setSelectedTemplate(template)
+    setEmailSubject(replaceVariables(template.subject))
+    setEmailBody(replaceVariables(template.body))
+  }
 
-    // Show success message
-    alert(`Email would be sent to ${agentEmail}`)
-    onClose()
+  // Initialize with the first template
+  useEffect(() => {
+    applyTemplate(emailTemplates[0])
+  }, [agentName, agentEmail, propertyAddress, town]) // Re-apply when props change
+
+  const handleSendEmail = async () => {
+    try {
+      setIsSending(true)
+      setError(null)
+
+      // Replace variables one final time before sending
+      const finalSubject = replaceVariables(emailSubject)
+      const finalBody = replaceVariables(emailBody)
+
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: toEmail,
+          from: "Cooper from RePhotos <cooper@rephotos.ca>",
+          subject: finalSubject,
+          body: finalBody,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send email')
+      }
+
+      // Show success message
+      alert('Email sent successfully!')
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send email')
+    } finally {
+      setIsSending(false)
+    }
   }
 
   return (
@@ -204,11 +144,22 @@ export default function EmailTemplateModal({ isOpen, onClose, agentName, agentEm
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {error && (
+            <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+
           <div>
             <label htmlFor="to" className="block text-sm font-medium mb-1">
               To
             </label>
-            <Input id="to" value={agentEmail} readOnly className="bg-muted/50" />
+            <Input 
+              id="to" 
+              value={toEmail} 
+              onChange={(e) => setToEmail(e.target.value)}
+              placeholder="Enter recipient email"
+            />
           </div>
 
           <div>
@@ -253,7 +204,12 @@ export default function EmailTemplateModal({ isOpen, onClose, agentName, agentEm
           </div>
 
           <div className="flex justify-end pt-2">
-            <Button onClick={handleSendEmail}>Send Email</Button>
+            <Button 
+              onClick={handleSendEmail} 
+              disabled={isSending}
+            >
+              {isSending ? 'Sending...' : 'Send Email'}
+            </Button>
           </div>
         </div>
       </DialogContent>

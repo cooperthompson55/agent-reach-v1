@@ -232,7 +232,21 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
               </div>
               <div className="flex items-center justify-between">
                 <span>Total Interactions</span>
-                <span className="text-sm">2</span>
+                <span className="text-sm">{
+                  (() => {
+                    let logs = [];
+                    if (Array.isArray(contact.contact_logs)) {
+                      logs = contact.contact_logs;
+                    } else if (typeof contact.contact_logs === 'string' && contact.contact_logs.trim().length > 0) {
+                      try {
+                        logs = JSON.parse(contact.contact_logs);
+                      } catch {
+                        logs = [];
+                      }
+                    }
+                    return logs.length;
+                  })()
+                }</span>
               </div>
             </div>
           </div>

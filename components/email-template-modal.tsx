@@ -44,6 +44,7 @@ interface EmailTemplateModalProps {
   agentEmail: string;
   propertyAddress: string;
   town?: string;
+  listings?: { id: string; property_address: string; property_city: string }[];
 }
 
 export default function EmailTemplateModal({ 
@@ -52,7 +53,8 @@ export default function EmailTemplateModal({
   agentName, 
   agentEmail, 
   propertyAddress,
-  town = "the area" // Default value if town is not provided
+  town = "the area",
+  listings = [],
 }: EmailTemplateModalProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate>(emailTemplates[0])
   const [emailSubject, setEmailSubject] = useState("")
@@ -60,6 +62,8 @@ export default function EmailTemplateModal({
   const [toEmail, setToEmail] = useState(agentEmail || "")
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedListingId, setSelectedListingId] = useState<string>(listings[0]?.id || '');
+  const selectedListing = listings.find(l => l.id === selectedListingId) || listings[0] || null;
 
   useEffect(() => {
     setToEmail(agentEmail || "")
@@ -71,8 +75,8 @@ export default function EmailTemplateModal({
       FirstName: agentName?.split(" ")[0] || "",
       AgentName: agentName || "",
       AgentEmail: agentEmail || "",
-      PropertyAddress: propertyAddress || "",
-      Town: town || "the area",
+      PropertyAddress: selectedListing?.property_address || propertyAddress || "",
+      Town: selectedListing?.property_city || town || "the area",
     }
 
     return text.replace(/\{([^}]+)\}/g, (match, key) => {
@@ -90,7 +94,7 @@ export default function EmailTemplateModal({
   // Initialize with the first template
   useEffect(() => {
     applyTemplate(emailTemplates[0])
-  }, [agentName, agentEmail, propertyAddress, town]) // Re-apply when props change
+  }, [agentName, agentEmail, selectedListing, propertyAddress, town]) // Re-apply when props change
 
   const handleSendEmail = async () => {
     try {
@@ -161,6 +165,23 @@ export default function EmailTemplateModal({
               placeholder="Enter recipient email"
             />
           </div>
+
+          {listings.length > 0 && (
+            <div className="mb-2">
+              <label className="block text-sm font-medium mb-1">Listing</label>
+              <select
+                className="w-full rounded border px-3 py-2 bg-white dark:bg-zinc-900 dark:text-zinc-100"
+                value={selectedListingId}
+                onChange={e => setSelectedListingId(e.target.value)}
+              >
+                {listings.map(listing => (
+                  <option key={listing.id} value={listing.id}>
+                    {listing.property_address}, {listing.property_city}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-2">Templates</label>

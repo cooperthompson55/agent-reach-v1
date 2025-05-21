@@ -6,7 +6,6 @@ import {
   Users, 
   MessageSquare, 
   PhoneCall, 
-  Settings, 
   Menu, 
   X 
 } from 'lucide-react'
@@ -28,9 +27,9 @@ export function AppNavigation() {
       icon: PhoneCall,
     },
     {
-      name: 'Settings',
-      href: '/settings',
-      icon: Settings,
+      name: 'Contacts',
+      href: '/contacts',
+      icon: Users,
     },
   ]
 

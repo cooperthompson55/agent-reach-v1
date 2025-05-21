@@ -65,6 +65,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CSVUpload } from "@/components/csv-upload"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 // Available statuses
 const statuses = [
@@ -172,6 +173,9 @@ export default function LeadTable() {
   const [highlightedRow, setHighlightedRow] = useState<string | null>(null)
   const [showExtractedDialog, setShowExtractedDialog] = useState(false)
   const [pendingExtractedInfo, setPendingExtractedInfo] = useState<ExtractedInfo | null>(null)
+  const isMobile = useIsMobile();
+  const [hoveredStatusId, setHoveredStatusId] = useState<string | null>(null);
+  const [hoveredPopoverId, setHoveredPopoverId] = useState<string | null>(null);
 
   const { toast } = useToast()
 
@@ -637,8 +641,6 @@ export default function LeadTable() {
       onClose={() => setSmsModalOpen(false)}
       agentName={selectedLead.agent_name}
       agentPhone={selectedLead.agent_phone || ""}
-      propertyAddress={selectedLead.property_address}
-      town={selectedLead.property_city || ""}
     />
   )}
 
@@ -770,185 +772,185 @@ export default function LeadTable() {
               <TagIcon className="h-4 w-4" />
               Remove Duplicates
             </Button>
-          <Button variant="outline" className="flex items-center gap-2" onClick={() => setFilterDialogOpen(true)}>
-            <Filter className="h-4 w-4" />
-            Filter
-              {(statusFilter || tagFilter) && (
-              <Badge variant="secondary" className="ml-1 rounded-full px-1 py-0 text-xs">
-                  {statusFilter ? "1" : tagFilter ? "1" : "0"}
-              </Badge>
-            )}
-          </Button>
-            <Button 
-              variant="destructive" 
-              className="flex items-center gap-2" 
-              onClick={deleteAllLeads}
-              disabled={leads.length === 0}
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete All
-            </Button>
-        </div>
-      </div>
-
-      {/* Active filters display */}
-        {(statusFilter || tagFilter) && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Active filters:</span>
-            {statusFilter && (
-            <Badge variant="outline" className="flex items-center gap-1">
-              Status: {statusFilter}
-                <Button variant="ghost" size="icon" className="h-4 w-4 p-0 ml-1" onClick={() => setStatusFilter(null)}>
-                <X className="h-3 w-3" />
-                <span className="sr-only">Remove status filter</span>
-              </Button>
+        <Button variant="outline" className="flex items-center gap-2" onClick={() => setFilterDialogOpen(true)}>
+          <Filter className="h-4 w-4" />
+          Filter
+            {(statusFilter || tagFilter) && (
+            <Badge variant="secondary" className="ml-1 rounded-full px-1 py-0 text-xs">
+                {statusFilter ? "1" : tagFilter ? "1" : "0"}
             </Badge>
           )}
-            {tagFilter && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                Tag: {tagFilter}
-                <Button variant="ghost" size="icon" className="h-4 w-4 p-0 ml-1" onClick={() => toggleTagFilter(tagFilter)}>
+        </Button>
+          <Button 
+            variant="destructive" 
+            className="flex items-center gap-2" 
+            onClick={deleteAllLeads}
+            disabled={leads.length === 0}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete All
+          </Button>
+      </div>
+    </div>
+
+    {/* Active filters display */}
+      {(statusFilter || tagFilter) && (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Active filters:</span>
+          {statusFilter && (
+          <Badge variant="outline" className="flex items-center gap-1">
+            Status: {statusFilter}
+              <Button variant="ghost" size="icon" className="h-4 w-4 p-0 ml-1" onClick={() => setStatusFilter(null)}>
+              <X className="h-3 w-3" />
+              <span className="sr-only">Remove status filter</span>
+            </Button>
+          </Badge>
+        )}
+          {tagFilter && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              Tag: {tagFilter}
+              <Button variant="ghost" size="icon" className="h-4 w-4 p-0 ml-1" onClick={() => toggleTagFilter(tagFilter)}>
                 <X className="h-3 w-3" />
                 <span className="sr-only">Remove tag filter</span>
               </Button>
             </Badge>
-            )}
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearFilters}>
-            Clear all
-          </Button>
-        </div>
-      )}
+          )}
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearFilters}>
+          Clear all
+        </Button>
+      </div>
+    )}
 
-        {/* Table Section */}
-        <div className="rounded-md border overflow-x-auto">
-        <Table>
-          <TableHeader>
+      {/* Table Section */}
+      <div className="rounded-md border overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[200px]">
+              <Button
+                variant="ghost"
+                onClick={() => toggleSort("agentName")}
+                className="flex items-center gap-1 font-medium"
+              >
+                <User className="h-4 w-4" />
+                Agent
+                {sortColumn === "agentName" && <ArrowUpDown className="h-3 w-3" />}
+              </Button>
+            </TableHead>
+            <TableHead>
+              <Button
+                variant="ghost"
+                onClick={() => toggleSort("city")}
+                className="flex items-center gap-1 font-medium"
+              >
+                <MapPin className="h-4 w-4" />
+                Location
+                {sortColumn === "city" && <ArrowUpDown className="h-3 w-3" />}
+              </Button>
+            </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => toggleSort("price")}
+                  className="flex items-center gap-1 font-medium"
+                >
+                  <DollarSign className="h-4 w-4" />
+                  Price
+                  {sortColumn === "price" && <ArrowUpDown className="h-3 w-3" />}
+                </Button>
+              </TableHead>
+            <TableHead className="text-center">
+              <Button
+                variant="ghost"
+                onClick={() => toggleSort("photoCount")}
+                className="flex items-center gap-1 font-medium"
+              >
+                <Camera className="h-4 w-4" />
+                Photos
+                {sortColumn === "photoCount" && <ArrowUpDown className="h-3 w-3" />}
+              </Button>
+            </TableHead>
+            <TableHead>
+              <Button
+                variant="ghost"
+                onClick={() => toggleSort("listingDate")}
+                className="flex items-center gap-1 font-medium"
+              >
+                <Calendar className="h-4 w-4" />
+                Listed
+                {sortColumn === "listingDate" && <ArrowUpDown className="h-3 w-3" />}
+              </Button>
+            </TableHead>
+            <TableHead>
+              <div className="flex items-center gap-1 font-medium">
+                <TagIcon className="h-4 w-4" />
+                Tags
+              </div>
+            </TableHead>
+            <TableHead>
+              <div className="flex items-center gap-1 font-medium">
+                <Clock className="h-4 w-4" />
+                Status
+              </div>
+            </TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+            {loading ? (
             <TableRow>
-              <TableHead className="w-[200px]">
-                <Button
-                  variant="ghost"
-                  onClick={() => toggleSort("agentName")}
-                  className="flex items-center gap-1 font-medium"
-                >
-                  <User className="h-4 w-4" />
-                  Agent
-                  {sortColumn === "agentName" && <ArrowUpDown className="h-3 w-3" />}
-                </Button>
-              </TableHead>
-              <TableHead>
-                <Button
-                  variant="ghost"
-                  onClick={() => toggleSort("city")}
-                  className="flex items-center gap-1 font-medium"
-                >
-                  <MapPin className="h-4 w-4" />
-                  Location
-                  {sortColumn === "city" && <ArrowUpDown className="h-3 w-3" />}
-                </Button>
-              </TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    onClick={() => toggleSort("price")}
-                    className="flex items-center gap-1 font-medium"
-                  >
-                    <DollarSign className="h-4 w-4" />
-                    Price
-                    {sortColumn === "price" && <ArrowUpDown className="h-3 w-3" />}
-                  </Button>
-                </TableHead>
-              <TableHead className="text-center">
-                <Button
-                  variant="ghost"
-                  onClick={() => toggleSort("photoCount")}
-                  className="flex items-center gap-1 font-medium"
-                >
-                  <Camera className="h-4 w-4" />
-                  Photos
-                  {sortColumn === "photoCount" && <ArrowUpDown className="h-3 w-3" />}
-                </Button>
-              </TableHead>
-              <TableHead>
-                <Button
-                  variant="ghost"
-                  onClick={() => toggleSort("listingDate")}
-                  className="flex items-center gap-1 font-medium"
-                >
-                  <Calendar className="h-4 w-4" />
-                  Listed
-                  {sortColumn === "listingDate" && <ArrowUpDown className="h-3 w-3" />}
-                </Button>
-              </TableHead>
-              <TableHead>
-                <div className="flex items-center gap-1 font-medium">
-                  <TagIcon className="h-4 w-4" />
-                  Tags
-                </div>
-              </TableHead>
-              <TableHead>
-                <div className="flex items-center gap-1 font-medium">
-                  <Clock className="h-4 w-4" />
-                  Status
-                </div>
-              </TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-              {loading ? (
-              <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center">
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                      <span className="ml-2">Loading leads...</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : filteredLeads.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center">
-                  No leads found. Try adjusting your filters or import new leads.
+                <TableCell colSpan={8} className="h-24 text-center">
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="ml-2">Loading leads...</span>
+                  </div>
                 </TableCell>
               </TableRow>
-            ) : (
-                paginatedLeads.map((lead, index) => (
-                <React.Fragment key={lead.id}>
-                    <TableRow 
-                      className={`${
-                        index % 2 === 0 ? "bg-muted/50" : ""
-                      } ${
-                        highlightedRow === lead.id ? "ring-2 ring-primary ring-offset-2 transition-all duration-300" : ""
-                      }`}
-                      onClick={e => {
-                        if (e.shiftKey) {
-                          e.stopPropagation();
-                          handleAutoPaste(lead.id);
-                        }
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    >
-                    <TableCell className="font-medium">
-                        <button
-                          onClick={() => toggleRowExpansion(lead.id)}
-                          className="w-full text-left hover:text-primary transition-colors"
-                        >
-                      <div>
-                            {lead.agent_name}
-                            {lead.brokerage_name && (
-                              <div className="text-xs text-muted-foreground">{lead.brokerage_name}</div>
-                            )}
-                      </div>
-                        </button>
-                    </TableCell>
-                    <TableCell>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => openGoogleMaps(lead.property_address, lead.property_city)}
-                                className="flex items-center gap-1 hover:text-primary transition-colors"
-                              >
-                        <MapPin className="h-3 w-3 text-muted-foreground" />
+            ) : filteredLeads.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="h-24 text-center">
+                No leads found. Try adjusting your filters or import new leads.
+              </TableCell>
+            </TableRow>
+          ) : (
+              paginatedLeads.map((lead, index) => (
+              <React.Fragment key={lead.id}>
+                  <TableRow 
+                    className={`${
+                      index % 2 === 0 ? "bg-muted/50" : ""
+                    } ${
+                      highlightedRow === lead.id ? "ring-2 ring-primary ring-offset-2 transition-all duration-300" : ""
+                    }`}
+                    onClick={e => {
+                      if (e.shiftKey) {
+                        e.stopPropagation();
+                        handleAutoPaste(lead.id);
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                  <TableCell className="font-medium">
+                      <button
+                        onClick={() => toggleRowExpansion(lead.id)}
+                        className="w-full text-left hover:text-primary transition-colors"
+                      >
+                    <div>
+                          {lead.agent_name}
+                          {lead.brokerage_name && (
+                            <div className="text-xs text-muted-foreground">{lead.brokerage_name}</div>
+                          )}
+                    </div>
+                      </button>
+                  </TableCell>
+                  <TableCell>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => openGoogleMaps(lead.property_address, lead.property_city)}
+                              className="flex items-center gap-1 hover:text-primary transition-colors"
+                            >
+                      <MapPin className="h-3 w-3 text-muted-foreground" />
                                 {formatLocation(lead.property_city, lead.property_postal)}
                                 <div className="text-xs text-muted-foreground truncate max-w-[150px]">{lead.property_address}</div>
                               </button>
@@ -1039,34 +1041,62 @@ export default function LeadTable() {
                     </TableCell>
                     <TableCell>
                       <Popover
-                        open={openStatusPopover === lead.id}
-                        onOpenChange={(open) => setOpenStatusPopover(open ? lead.id : null)}
+                        open={isMobile ? openStatusPopover === lead.id : (hoveredStatusId === lead.id || hoveredPopoverId === lead.id)}
+                        onOpenChange={isMobile ? (open) => setOpenStatusPopover(open ? lead.id : null) : undefined}
                       >
                         <PopoverTrigger asChild>
                           <Button
                             variant="ghost"
-                              className={`text-xs px-2 py-1 h-auto font-normal ${statusColors[lead.listing_source] || 'bg-gray-100 text-gray-800'}`}
+                            className={`text-xs px-2 py-1 h-auto font-normal ${statusColors[lead.listing_source] || 'bg-gray-100 text-gray-800'}`}
+                            onMouseEnter={
+                              !isMobile
+                                ? () => setHoveredStatusId(lead.id)
+                                : undefined
+                            }
+                            onMouseLeave={
+                              !isMobile
+                                ? () => setHoveredStatusId(null)
+                                : undefined
+                            }
+                            onClick={
+                              !isMobile
+                                ? (e) => {
+                                    if (lead.listing_source === "Not Contacted") {
+                                      updateLeadStatus(lead.id, "Contacted");
+                                    } else if (lead.listing_source === "Contacted") {
+                                      updateLeadStatus(lead.id, "Not Contacted");
+                                    }
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                  }
+                                : undefined
+                            }
                           >
-                              {lead.listing_source}
+                            {lead.listing_source}
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-56 p-2" align="start">
+                        <PopoverContent
+                          className="w-56 p-2"
+                          align="start"
+                          onMouseEnter={!isMobile ? () => setHoveredPopoverId(lead.id) : undefined}
+                          onMouseLeave={!isMobile ? () => setHoveredPopoverId(null) : undefined}
+                        >
                           <div className="space-y-1">
                             <p className="text-sm font-medium">Update Status</p>
                             <div className="grid grid-cols-1 gap-1">
                               {statuses.map((status) => (
                                 <Button
                                   key={status.id}
-                                    variant={lead.listing_source === status.name ? "default" : "outline"}
+                                  variant={lead.listing_source === status.name ? "default" : "outline"}
                                   size="sm"
-                                    className={`justify-start ${
-                                      lead.listing_source === status.name
-                                        ? `${status.color.replace(/bg-\w+-500\/10/, match => match.replace('10', '20')).replace(/dark:bg-\w+-800\/40/, match => match.replace('40', '60'))} ring-2 ring-primary/30`
-                                        : status.color
-                                    }`}
+                                  className={`justify-start ${
+                                    lead.listing_source === status.name
+                                      ? `${status.color.replace(/bg-\w+-500\/10/, match => match.replace('10', '20')).replace(/dark:bg-\w+-800\/40/, match => match.replace('40', '60'))} ring-2 ring-primary/30`
+                                      : status.color
+                                  }`}
                                   onClick={() => updateLeadStatus(lead.id, status.name)}
                                 >
-                                    {lead.listing_source === status.name && <Check className="mr-1 h-3 w-3" />}
+                                  {lead.listing_source === status.name && <Check className="mr-1 h-3 w-3" />}
                                   {status.name}
                                 </Button>
                               ))}
@@ -1129,23 +1159,28 @@ export default function LeadTable() {
                                   size="sm"
                                   onClick={() => {
                                     setHighlightedRow(lead.id)
-                                    openEmailModal(lead as Listing)
+                                    if (lead.agent_email) {
+                                      openEmailModal(lead as Listing)
+                                    } else {
+                                      const searchQuery = `${lead.agent_name} ${lead.brokerage_name} real estate agent Contact Email`
+                                      window.open(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, '_blank')
+                                    }
                                   }}
                                   className={`h-8 w-8 p-0 ${
                                     lead.agent_email
                                       ? "bg-black text-white hover:bg-black/90 hover:text-white"
                                       : "bg-muted text-muted-foreground hover:bg-muted/80"
                                   }`}
-                              >
-                                <Mail className="h-4 w-4" />
-                                <span className="sr-only">Send Email</span>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Send Email</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                                >
+                                  <Mail className="h-4 w-4" />
+                                  <span className="sr-only">Send Email</span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Send Email</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
 
                         <TooltipProvider>
                           <Tooltip>
@@ -1500,8 +1535,6 @@ export default function LeadTable() {
           onClose={() => setSmsModalOpen(false)}
           agentName={selectedLead.agent_name}
           agentPhone={selectedLead.agent_phone || ""}
-          propertyAddress={selectedLead.property_address}
-          town={selectedLead.property_city || ""}
         />
       )}
 

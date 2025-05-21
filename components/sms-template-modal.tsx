@@ -36,9 +36,8 @@ interface SmsTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
   agentName: string;
-  agentPhone: string; // Changed from agentEmail
-  propertyAddress: string;
-  town?: string;
+  agentPhone: string;
+  listings?: { id: string; property_address: string; property_city: string }[];
 }
 
 export default function SmsTemplateModal({ 
@@ -46,14 +45,15 @@ export default function SmsTemplateModal({
   onClose, 
   agentName, 
   agentPhone, 
-  propertyAddress,
-  town = "the area"
+  listings = [],
 }: SmsTemplateModalProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<SmsTemplate>(smsTemplates[0])
   const [smsBody, setSmsBody] = useState("")
   const [toPhone, setToPhone] = useState(agentPhone || "") // Changed from toEmail
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedListingId, setSelectedListingId] = useState<string>(listings[0]?.id || '');
+  const selectedListing = listings.find(l => l.id === selectedListingId) || listings[0] || null;
 
   useEffect(() => {
     setToPhone(agentPhone || "")
@@ -63,17 +63,15 @@ export default function SmsTemplateModal({
     const variables: Record<string, string> = {
       FirstName: agentName?.split(" ")[0] || "",
       AgentName: agentName || "",
-      AgentPhone: agentPhone || "", // Changed from AgentEmail
-      PropertyAddress: propertyAddress || "",
-      Town: town || "the area",
-      // Add any other SMS-specific variables here, e.g., Time for reminders
-      Time: "2:00 PM", // Placeholder for Time variable
-    }
-
+      AgentPhone: agentPhone || "",
+      PropertyAddress: selectedListing?.property_address || "",
+      Town: selectedListing?.property_city || "the area",
+      Time: "2:00 PM",
+    };
     return text.replace(/\{([^}]+)\}/g, (match, key) => {
-      return variables[key] !== undefined ? variables[key] : match
-    })
-  }
+      return variables[key] !== undefined ? variables[key] : match;
+    });
+  };
 
   const applyTemplate = (template: SmsTemplate) => {
     setSelectedTemplate(template)
@@ -84,7 +82,7 @@ export default function SmsTemplateModal({
     if (smsTemplates.length > 0) {
       applyTemplate(smsTemplates[0])
     }
-  }, [agentName, agentPhone, propertyAddress, town]) // Re-apply when props change
+  }, [agentName, agentPhone, selectedListing]) // Re-apply when props change
 
   const handleSendSms = async () => {
     try {
@@ -152,6 +150,25 @@ export default function SmsTemplateModal({
               onChange={(e) => setToPhone(e.target.value)}
               placeholder="Enter recipient phone number" // Changed placeholder
             />
+          </div>
+
+          <div className="mb-4">
+            {listings.length > 0 && (
+              <div className="mb-2">
+                <label className="block text-sm font-medium mb-1">Listing</label>
+                <select
+                  className="w-full rounded border px-3 py-2 bg-white dark:bg-zinc-900 dark:text-zinc-100"
+                  value={selectedListingId}
+                  onChange={e => setSelectedListingId(e.target.value)}
+                >
+                  {listings.map(listing => (
+                    <option key={listing.id} value={listing.id}>
+                      {listing.property_address}, {listing.property_city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div>

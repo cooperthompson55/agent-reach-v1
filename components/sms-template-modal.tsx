@@ -17,7 +17,7 @@ const smsTemplates = [
   {
     id: "zero-photos",
     name: "0 Photos",
-    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} doesn't have any photos. I'm a local photographer and can help showcase it beautifully to attract more buyers. If you're interested in upgrading your listing, let me know. Thanks! - Cooper`,
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} doesn't have any yet. I'm a local photographer and can help showcase it beautifully to attract more buyers. If you're interested in upgrading your listing, let me know. Thanks! - Cooper`,
   },
   {
     id: "no-interiors",

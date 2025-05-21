@@ -21,6 +21,7 @@ import {
   Mail,
   MailOpen,
   MapPin,
+  MessageSquare,
   Phone,
   Plus,
   Search,
@@ -50,6 +51,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import EmailTemplateModal from "./email-template-modal"
+import SmsTemplateModal from "./sms-template-modal"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -148,6 +150,7 @@ export default function LeadTable() {
   const [sortDirection, setSortDirection] = useState("desc")
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
   const [emailModalOpen, setEmailModalOpen] = useState(false)
+  const [smsModalOpen, setSmsModalOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Listing | null>(null)
   const [leads, setLeads] = useState<Listing[]>([])
   const [openStatusPopover, setOpenStatusPopover] = useState<string | null>(null)
@@ -247,6 +250,12 @@ export default function LeadTable() {
   const openEmailModal = (lead: Listing) => {
     setSelectedLead(lead)
     setEmailModalOpen(true)
+  }
+
+  // Open SMS modal for a lead
+  const openSmsModal = (lead: Listing) => {
+    setSelectedLead(lead)
+    setSmsModalOpen(true)
   }
 
   // Update the tag handling
@@ -616,6 +625,18 @@ export default function LeadTable() {
       onClose={() => setEmailModalOpen(false)}
       agentName={selectedLead.agent_name}
       agentEmail={selectedLead.agent_email || ""}
+      propertyAddress={selectedLead.property_address}
+      town={selectedLead.property_city || ""}
+    />
+  )}
+
+  // Update the SMS modal props
+  {selectedLead && (
+    <SmsTemplateModal
+      isOpen={smsModalOpen}
+      onClose={() => setSmsModalOpen(false)}
+      agentName={selectedLead.agent_name}
+      agentPhone={selectedLead.agent_phone || ""}
       propertyAddress={selectedLead.property_address}
       town={selectedLead.property_city || ""}
     />
@@ -1179,6 +1200,33 @@ export default function LeadTable() {
                           </Tooltip>
                         </TooltipProvider>
 
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setHighlightedRow(lead.id)
+                                  openSmsModal(lead as Listing)
+                                }}
+                                className={`h-8 w-8 p-0 ${
+                                  lead.agent_phone
+                                    ? "bg-blue-500 text-white hover:bg-blue-500/90 hover:text-white"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                }`}
+                                disabled={!lead.agent_phone}
+                              >
+                                <MessageSquare className="h-4 w-4" />
+                                <span className="sr-only">Send SMS</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{lead.agent_phone ? "Send SMS" : "No phone number"}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1440,6 +1488,18 @@ export default function LeadTable() {
           onClose={() => setEmailModalOpen(false)}
           agentName={selectedLead.agent_name}
           agentEmail={selectedLead.agent_email || ""}
+          propertyAddress={selectedLead.property_address}
+          town={selectedLead.property_city || ""}
+        />
+      )}
+
+      {/* SMS Template Modal */}
+      {selectedLead && (
+        <SmsTemplateModal
+          isOpen={smsModalOpen}
+          onClose={() => setSmsModalOpen(false)}
+          agentName={selectedLead.agent_name}
+          agentPhone={selectedLead.agent_phone || ""}
           propertyAddress={selectedLead.property_address}
           town={selectedLead.property_city || ""}
         />

@@ -106,7 +106,7 @@ export default function SmsTemplateModal({
         },
         body: JSON.stringify({
           to: toPhone,
-          message: finalBody,
+          body: finalBody,
         }),
       })
 

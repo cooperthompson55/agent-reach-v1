@@ -234,7 +234,7 @@ export default function ContactsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4">
+    <div className="w-full py-8 px-4 md:px-8">
       <h1 className="text-4xl font-bold mb-2">Contacts</h1>
       <div className="text-gray-500 dark:text-zinc-400 mb-4">Total Contacts: {filteredContacts.length}</div>
       <div className="flex items-center gap-2 mb-4">
@@ -314,7 +314,7 @@ export default function ContactsPage() {
           Refresh Contacts
         </Button>
       </div>
-      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-gray-200 dark:border-zinc-800 overflow-x-auto">
+      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-gray-200 dark:border-zinc-800 overflow-x-auto w-full">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">
           <thead>
             <tr>

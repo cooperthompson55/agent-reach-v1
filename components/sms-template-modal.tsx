@@ -12,22 +12,22 @@ const smsTemplates = [
   {
     id: "low-quality",
     name: "Low Quality",
-    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} could use a few more high quality photos to show its full potential. I'm a local photographer and can help with photos for this listing. Let me know if you're interested, thanks!`,
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} could use a few more high quality photos to show its full potential. I'm a local photographer and can help with photos for this listing. Let me know if you're interested, thanks! - Cooper`,
   },
   {
     id: "zero-photos",
     name: "0 Photos",
-    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} has 0 photos. I'm a local photographer and can help showcase it beautifully to attract more buyers. Let me know if you're interested. Thanks!`,
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} doesn't have any photos. I'm a local photographer and can help showcase it beautifully to attract more buyers. If you're interested in upgrading your listing, let me know. Thanks! - Cooper`,
   },
   {
     id: "no-interiors",
     name: "No Interiors",
-    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} could use a few more interior photos. I’m a local photographer and can help capture high-quality interior shots to better showcase the property. Let me know if you're interested. Thanks!`,
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} could use a few more interior photos. I’m a local photographer and can help capture high-quality interior shots to better showcase the property. Let me know if you're interested. Thanks! - Cooper`,
   },
   {
     id: "no-drone",
     name: "No Drone",
-    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} doesn't have any drone shots. I'm a local photographer and can help showcase the property with some aerial views to make it stand out. Let me know if you're interested. Thanks!`,
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} doesn't have any drone shots. I'm a local photographer and can help showcase the property with some aerial views to make it stand out. Let me know if you're interested. Thanks! - Cooper`,
   },
 ]
 

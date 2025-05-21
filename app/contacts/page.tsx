@@ -82,6 +82,8 @@ export default function ContactsPage() {
   const [emailContact, setEmailContact] = useState<Contact | null>(null);
   const [emailListings, setEmailListings] = useState<any[]>([]);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   // Filter contacts by search term
   const filteredContacts = React.useMemo(() => {
@@ -138,12 +140,17 @@ export default function ContactsPage() {
 
   // Move fetchContactsData outside useEffect
   const fetchContactsData = async () => {
+    setRefreshing(true);
+    setRefreshMessage(null);
     const { data: listingsData, error } = await supabase
       .from('listings')
       .select('agent_name, agent_email, agent_phone, brokerage_name, instagram_account, property_address, property_city, agent_tags, agent_status');
 
     if (error) {
       console.error('Error fetching listings:', error);
+      setRefreshMessage('Failed to refresh contacts.');
+      setRefreshing(false);
+      setTimeout(() => setRefreshMessage(null), 2000);
       return;
     }
 
@@ -183,7 +190,10 @@ export default function ContactsPage() {
         }
       });
       setContacts(Array.from(agentMap.values()).map(entry => entry.contact));
+      setRefreshMessage('Contacts refreshed!');
+      setTimeout(() => setRefreshMessage(null), 2000);
     }
+    setRefreshing(false);
   };
 
   useEffect(() => {
@@ -235,6 +245,7 @@ export default function ContactsPage() {
 
   return (
     <div className="w-full py-8 px-4 md:px-8">
+      {/* <h1 className="text-4xl font-bold mb-2">Lead Manager</h1> */}
       <h1 className="text-4xl font-bold mb-2">Contacts</h1>
       <div className="text-gray-500 dark:text-zinc-400 mb-4">Total Contacts: {filteredContacts.length}</div>
       <div className="flex items-center gap-2 mb-4">
@@ -310,9 +321,13 @@ export default function ContactsPage() {
         <Button variant="outline" className="ml-2 flex items-center gap-2" onClick={handleTagAll}>
           Tag All
         </Button>
-        <Button variant="outline" className="ml-2 flex items-center gap-2" onClick={fetchContactsData}>
+        <Button variant="outline" className="ml-2 flex items-center gap-2" onClick={fetchContactsData} disabled={refreshing}>
+          {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Refresh Contacts
         </Button>
+        {refreshMessage && (
+          <span className={`ml-2 text-sm ${refreshMessage.includes('Failed') ? 'text-red-600' : 'text-green-600'}`}>{refreshMessage}</span>
+        )}
       </div>
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-gray-200 dark:border-zinc-800 overflow-x-auto w-full">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">

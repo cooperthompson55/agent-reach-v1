@@ -24,8 +24,49 @@ Agents I work with typically see more showings, better listing performance, and 
 If you'd like, I can send over some recent examples from similar properties.
 
 Thanks,
-Cooper Thompson
-905-299-9300
+Cooper
+RePhotos.ca`,
+  },
+  {
+    id: "low-quality",
+    name: "Low Quality",
+    subject: "Quick Note on Your {PropertyAddress} Listing",
+    body: `Hi {FirstName},
+
+I came across your listing at {PropertyAddress} and noticed it could benefit from a few more high-quality photos to show its full potential.
+
+I'm a local real estate photographer and would love to help bring out the best in the property. Let me know if you're interested—happy to share examples or chat availability.
+
+Thanks!
+Cooper
+RePhotos.ca`,
+  },
+  {
+    id: "zero-photos",
+    name: "0 Photos",
+    subject: "Quick Note on Your {PropertyAddress} Listing",
+    body: `Hi {FirstName},
+
+I noticed your listing at {PropertyAddress} doesn't have any photos yet. I'm a local real estate photographer and would be happy to help capture the property to showcase it beautifully and attract more buyers.
+
+Let me know if you're interested—happy to send over examples.
+
+Thanks!
+Cooper
+RePhotos.ca`,
+  },
+  {
+    id: "no-drone",
+    name: "No Drone",
+    subject: "Highlight {PropertyAddress} with Aerial Views",
+    body: `Hi {FirstName},
+
+I came across your listing at {PropertyAddress}—the photos look great, but I noticed there aren't any drone or aerial shots. Adding a few aerial perspectives can really help showcase the property's surroundings and give buyers a better sense of the location.
+
+I'm a local real estate photographer and would be happy to help with that. Let me know if you're interested!
+
+Thanks,
+Cooper
 RePhotos.ca`,
   },
 ]

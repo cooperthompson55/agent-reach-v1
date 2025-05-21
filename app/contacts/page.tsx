@@ -3,7 +3,7 @@ import React from "react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Filter, MoreHorizontal, Trash2, Edit2, Eye, ChevronLeft, ChevronRight, Check, Loader2, MessageSquare, Mail } from "lucide-react";
+import { Plus, Filter, MoreHorizontal, Trash2, Edit2, Eye, ChevronLeft, ChevronRight, Check, Loader2, MessageSquare, Mail, Search } from "lucide-react";
 import ContactDetailsModal from "@/components/contacts/ContactDetailsModal";
 import {
   DropdownMenu,
@@ -468,6 +468,20 @@ export default function ContactsPage() {
                     title="Send SMS"
                   >
                     <MessageSquare className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="bg-gray-600 hover:bg-gray-700 text-white w-7 h-7 p-0 rounded-full"
+                    onClick={() => {
+                      const searchQuery = contact.email
+                        ? `${contact.email}`
+                        : `${contact.name} ${contact.brokerage || ''} real estate agent Contact Email`;
+                      window.open(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, '_blank');
+                    }}
+                    title="Google Search Email"
+                  >
+                    <Search className="w-4 h-4" />
                   </Button>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>

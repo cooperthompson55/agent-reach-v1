@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from '@/lib/supabase';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 
 const TABS = ["Overview", "Listings", "Contact History", "Notes", "Log Interaction"];
 const TAG_OPTIONS = [
@@ -32,6 +33,10 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
   const [editingTags, setEditingTags] = useState(false);
   const [updatingTag, setUpdatingTag] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailValue, setEmailValue] = useState(contact.email || "");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchListings() {
@@ -59,6 +64,23 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
     setTag(newTags);
     if (onTagChange) onTagChange(newTags);
     setUpdatingTag(false);
+  };
+
+  const handleEmailSave = async () => {
+    setSavingEmail(true);
+    setEmailError(null);
+    const { error } = await supabase
+      .from('listings')
+      .update({ agent_email: emailValue })
+      .eq('agent_name', contact.name)
+      .eq('agent_phone', contact.phone);
+    if (error) {
+      setEmailError('Failed to update email.');
+    } else {
+      setEditingEmail(false);
+      contact.email = emailValue;
+    }
+    setSavingEmail(false);
   };
 
   return (
@@ -96,7 +118,35 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
             {/* Contact Info */}
             <div className="border rounded-lg p-4 bg-gray-50 dark:bg-zinc-800">
               <h2 className="text-lg font-semibold mb-2">Contact Information</h2>
-              {contact.email && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">{contact.email}</div>}
+              {/* Editable Email Section */}
+              <div className="mb-1">
+                <span className="text-sm font-medium text-gray-700 dark:text-zinc-200">Email: </span>
+                {editingEmail ? (
+                  <span className="flex items-center gap-2">
+                    <Input
+                      value={emailValue}
+                      onChange={e => setEmailValue(e.target.value)}
+                      className="w-48"
+                      type="email"
+                      placeholder="Enter email"
+                    />
+                    <Button size="sm" onClick={handleEmailSave} disabled={savingEmail || !emailValue}>
+                      {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setEditingEmail(false); setEmailValue(contact.email || ""); }}>
+                      Cancel
+                    </Button>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700 dark:text-zinc-200">{contact.email || <span className="italic text-gray-400">No email</span>}</span>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingEmail(true)}>
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                  </span>
+                )}
+                {emailError && <div className="text-xs text-red-600 mt-1">{emailError}</div>}
+              </div>
               {contact.phone && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">{contact.phone}</div>}
               {contact.brokerage && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">{contact.brokerage}</div>}
               {contact.instagram && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">Instagram: {contact.instagram}</div>}

@@ -22,7 +22,12 @@ const smsTemplates = [
   {
     id: "no-interiors",
     name: "No Interiors",
-    body: `Hey {FirstName}, I'm a local photographer and noticed your listing at {PropertyAddress} could use a few more interior photos. I've got some availability this week if you're interested. Thanks!`,
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} could use a few more interior photos. I’m a local photographer and can help capture high-quality interior shots to better showcase the property. Let me know if you're interested. Thanks!`,
+  },
+  {
+    id: "no-drone",
+    name: "No Drone",
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} doesn't have any drone shots. I'm a local photographer and can help showcase the property with some aerial views to make it stand out. Let me know if you're interested. Thanks!`,
   },
 ]
 

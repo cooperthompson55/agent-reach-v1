@@ -22,7 +22,7 @@ const smsTemplates = [
   {
     id: "no-interiors",
     name: "No Interiors",
-    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} could use a few more interior photos. I’m a local photographer and can help capture high-quality interior shots to better showcase the property. Let me know if you're interested. Thanks! - Cooper`,
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} could use a few more interior photos. I'm a local photographer and can help capture high-quality interior shots to better showcase the property. Let me know if you're interested. Thanks! - Cooper`,
   },
   {
     id: "no-drone",
@@ -114,6 +114,21 @@ export default function SmsTemplateModal({
       }
 
       alert('SMS sent successfully!')
+      // Update agent_status to 'Contacted' in Supabase and log the SMS
+      const logEntry = {
+        type: 'sms',
+        message: finalBody,
+        timestamp: new Date().toISOString(),
+        property_id: selectedListing?.id || null,
+        property_address: selectedListing?.property_address || null,
+        sent_by: 'Cooper',
+        to: toPhone,
+      };
+      await fetch('/api/update-agent-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentPhone: agentPhone, agentName: agentName, status: 'Contacted', logEntry })
+      })
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send SMS')

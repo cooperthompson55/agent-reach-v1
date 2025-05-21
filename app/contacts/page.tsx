@@ -31,6 +31,7 @@ interface Contact {
   favorite: boolean; // Default to false
   agent_tags?: string | null;
   agent_status?: string | null;
+  contact_logs: any[]; // Assuming contact_logs is of type any[]
 }
 
 // Tag options and color map
@@ -144,7 +145,7 @@ export default function ContactsPage() {
     setRefreshMessage(null);
     const { data: listingsData, error } = await supabase
       .from('listings')
-      .select('agent_name, agent_email, agent_phone, brokerage_name, instagram_account, property_address, property_city, agent_tags, agent_status');
+      .select('agent_name, agent_email, agent_phone, brokerage_name, instagram_account, property_address, property_city, agent_tags, agent_status, contact_logs');
 
     if (error) {
       console.error('Error fetching listings:', error);
@@ -184,6 +185,7 @@ export default function ContactsPage() {
               favorite: false,
               agent_tags: listing.agent_tags || null,
               agent_status: listing.agent_status || 'Not Contacted',
+              contact_logs: listing.contact_logs || [],
             },
             addresses: listing.property_address ? new Set([listing.property_address]) : new Set(),
           });

@@ -1,11 +1,13 @@
 "use client"
 import { useState, useEffect, useRef } from "react";
-import { X, Star, Edit2, Check, Loader2 } from "lucide-react";
+import { X, Star, Edit2, Check, Loader2, Mail, MessageSquare, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from '@/lib/supabase';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import EmailTemplateModal from '@/components/email-template-modal';
+import SmsTemplateModal from '@/components/sms-template-modal';
 
 const TABS = ["Overview", "Listings", "Contact History", "Notes", "Log Interaction"];
 const TAG_OPTIONS = [
@@ -37,6 +39,10 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
   const [emailValue, setEmailValue] = useState(contact.email || "");
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [smsModalOpen, setSmsModalOpen] = useState(false);
+  const [emailListings, setEmailListings] = useState<any[]>([]);
+  const [smsListings, setSmsListings] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchListings() {
@@ -83,8 +89,15 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
     setSavingEmail(false);
   };
 
+  // Only close on background click if no child modal is open
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    if (!emailModalOpen && !smsModalOpen) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={handleBackgroundClick}>
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-2xl mx-auto p-6 relative overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
@@ -99,6 +112,59 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
             <div className="text-gray-500 dark:text-zinc-400">{contact.brokerage}</div>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}><X className="h-6 w-6" /></Button>
+        </div>
+        {/* Quick Action Buttons */}
+        <div className="flex gap-3 justify-center mb-4">
+          <Button
+            variant="outline"
+            size="icon"
+            className="bg-black hover:bg-black/90 text-white w-10 h-10 p-0 rounded-full"
+            onClick={async () => {
+              // Fetch listings for this agent
+              const { data } = await supabase
+                .from('listings')
+                .select('id, property_address, property_city')
+                .eq('agent_name', contact.name)
+                .eq('agent_phone', contact.phone);
+              setEmailListings(data || []);
+              setEmailModalOpen(true);
+            }}
+            title="Send Email"
+          >
+            <Mail className="w-5 h-5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="bg-blue-500 hover:bg-blue-600 text-white w-10 h-10 p-0 rounded-full"
+            onClick={async () => {
+              // Fetch listings for this agent
+              const { data } = await supabase
+                .from('listings')
+                .select('id, property_address, property_city')
+                .eq('agent_name', contact.name)
+                .eq('agent_phone', contact.phone);
+              setSmsListings(data || []);
+              setSmsModalOpen(true);
+            }}
+            title="Send SMS"
+          >
+            <MessageSquare className="w-5 h-5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="bg-gray-600 hover:bg-gray-700 text-white w-10 h-10 p-0 rounded-full"
+            onClick={() => {
+              const searchQuery = contact.email
+                ? `${contact.email}`
+                : `${contact.name} ${contact.brokerage || ''} real estate agent Contact Email`;
+              window.open(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, '_blank');
+            }}
+            title="Google Search Email"
+          >
+            <Search className="w-5 h-5" />
+          </Button>
         </div>
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-zinc-800 mb-6">
@@ -196,7 +262,48 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
           </div>
         )}
         {tab === "Contact History" && (
-          <div className="text-gray-500 dark:text-zinc-400 text-center py-8">Contact history will appear here.</div>
+          <div className="py-4 px-2">
+            <h2 className="text-lg font-semibold mb-4 text-center">Contact History</h2>
+            {(() => {
+              let logs = [];
+              if (Array.isArray(contact.contact_logs)) {
+                logs = contact.contact_logs;
+              } else if (typeof contact.contact_logs === 'string' && contact.contact_logs.trim().length > 0) {
+                try {
+                  logs = JSON.parse(contact.contact_logs);
+                } catch {
+                  logs = [];
+                }
+              }
+              if (logs.length > 0) {
+                return (
+                  <div className="space-y-4">
+                    {[...logs].reverse().map((log, idx) => (
+                      <div key={idx} className={`border rounded-lg p-4 shadow-sm ${idx % 2 === 0 ? 'bg-gray-50 dark:bg-zinc-800' : 'bg-white dark:bg-zinc-900'}`}> 
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${log.type === 'email' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>{log.type?.toUpperCase() || 'LOG'}</span>
+                          <span className="text-xs text-gray-500">{log.timestamp ? new Date(log.timestamp).toLocaleString() : ''}</span>
+                          {log.sent_by && <span className="ml-auto text-xs text-gray-400">by {log.sent_by}</span>}
+                        </div>
+                        {log.property_address && (
+                          <div className="text-xs text-gray-600 dark:text-zinc-300 mb-1">Property: {log.property_address}</div>
+                        )}
+                        {log.subject && (
+                          <div className="text-xs text-gray-600 dark:text-zinc-300 mb-1">Subject: {log.subject}</div>
+                        )}
+                        <div className="text-sm text-gray-900 dark:text-zinc-100 whitespace-pre-line mb-1">{log.message}</div>
+                        {log.to && (
+                          <div className="text-xs text-gray-500">To: {log.to}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              } else {
+                return <div className="text-gray-500 dark:text-zinc-400 text-center py-8">No contact history yet.</div>;
+              }
+            })()}
+          </div>
         )}
         {tab === "Notes" && (
           <div className="text-gray-500 dark:text-zinc-400 text-center py-8">Notes for this contact will appear here.</div>
@@ -218,6 +325,26 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
           </div>
         )}
       </div>
+      {emailModalOpen && (
+        <EmailTemplateModal
+          isOpen={emailModalOpen}
+          onClose={() => setEmailModalOpen(false)}
+          agentName={contact.name}
+          agentEmail={contact.email || ''}
+          propertyAddress={''}
+          town={''}
+          listings={emailListings}
+        />
+      )}
+      {smsModalOpen && (
+        <SmsTemplateModal
+          isOpen={smsModalOpen}
+          onClose={() => setSmsModalOpen(false)}
+          agentName={contact.name}
+          agentPhone={contact.phone || ''}
+          listings={smsListings}
+        />
+      )}
     </div>
   );
 }

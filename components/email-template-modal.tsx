@@ -167,6 +167,22 @@ export default function EmailTemplateModal({
 
       // Show success message
       alert('Email sent successfully!')
+      // Update agent_status to 'Contacted' in Supabase and log the email
+      const logEntry = {
+        type: 'email',
+        message: finalBody,
+        timestamp: new Date().toISOString(),
+        property_id: selectedListing?.id || null,
+        property_address: selectedListing?.property_address || propertyAddress || null,
+        sent_by: 'Cooper',
+        subject: finalSubject,
+        to: toEmail,
+      };
+      await fetch('/api/update-agent-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentEmail: agentEmail, agentName: agentName, status: 'Contacted', logEntry })
+      })
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send email')

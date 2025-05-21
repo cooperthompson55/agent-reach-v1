@@ -99,32 +99,24 @@ export default function SmsTemplateModal({
 
       const finalBody = replaceVariables(smsBody)
 
-      // Placeholder for actual SMS sending logic
-      console.log("Sending SMS:", {
-        to: toPhone,
-        body: finalBody,
+      const response = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: toPhone,
+          message: finalBody,
+        }),
       })
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000)); 
 
-      // const response = await fetch('/api/send-sms', { // This would be the actual API endpoint
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     to: toPhone,
-      //     body: finalBody,
-      //   }),
-      // })
+      const data = await response.json()
 
-      // const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send SMS')
+      }
 
-      // if (!response.ok) {
-      //   throw new Error(data.error || 'Failed to send SMS')
-      // }
-
-      alert('SMS sent successfully!') // Placeholder success message
+      alert('SMS sent successfully!')
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send SMS')

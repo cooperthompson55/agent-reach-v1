@@ -30,9 +30,10 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
     const fetchContacts = async () => {
       const res = await fetch('/api/messages?contact=all')
       const data = await res.json()
-      if (data.contacts) {
+      const messages = data.contacts || data.messages; // support both keys
+      if (messages) {
         // Map Twilio message to Contact type, using agent name if available
-        const mapped: Contact[] = data.contacts.map((msg: any, idx: number) => {
+        const mapped: Contact[] = messages.map((msg: any, idx: number) => {
           // Determine the other party (not your own Twilio number)
           const otherPhone = msg.from === TWILIO_PHONE ? msg.to : msg.from
           if (otherPhone === TWILIO_PHONE) return null // skip self

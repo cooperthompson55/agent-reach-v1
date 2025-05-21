@@ -10,25 +10,19 @@ import { Textarea } from "@/components/ui/textarea"
 // SMS template data (placeholder)
 const smsTemplates = [
   {
-    id: "welcome-sms",
-    name: "Welcome SMS",
-    body: `Hi {FirstName},
-
-Thanks for your interest in {PropertyAddress}. I'll be in touch shortly.
-
-Cooper Thompson
-905-299-9300
-RePhotos.ca`,
+    id: "low-quality",
+    name: "Low Quality",
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} could use a few more high quality photos to show its full potential. I'm a local photographer and can help with photos for this listing. Let me know if you're interested, thanks!`,
   },
   {
-    id: "showing-reminder-sms",
-    name: "Showing Reminder",
-    body: `Hi {FirstName},
-
-Just a friendly reminder about our showing for {PropertyAddress} tomorrow at {Time}.
-
-See you then,
-Cooper Thompson`,
+    id: "zero-photos",
+    name: "0 Photos",
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} has 0 photos. I'm a local photographer and can help showcase it beautifully to attract more buyers. Let me know if you're interested. Thanks!`,
+  },
+  {
+    id: "no-interiors",
+    name: "No Interiors",
+    body: `Hey {FirstName}, I'm a local photographer and noticed your listing at {PropertyAddress} could use a few more interior photos. I've got some availability this week if you're interested. Thanks!`,
   },
 ]
 

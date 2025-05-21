@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import "@/app/globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
+import { AppNavigation } from "@/components/AppNavigation"
 import { ReactNode } from "react"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -26,8 +27,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
           disableTransitionOnChange
         >
           <div className="relative flex min-h-screen flex-col">
+            <AppNavigation />
             <main className="flex-1">
-          {children}
+              {children}
             </main>
           </div>
         </ThemeProvider>

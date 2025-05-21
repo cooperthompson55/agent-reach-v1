@@ -57,13 +57,15 @@ const STATUS_OPTIONS = [
   'Interested',
   'Not Interested',
   'Client',
+  'Bad Lead',
 ];
 const STATUS_COLORS: Record<string, string> = {
   'Not Contacted': 'bg-yellow-700 text-white',
   'Contacted': 'bg-blue-900 text-white',
   'Interested': 'bg-green-900 text-white',
-  'Not Interested': 'bg-red-900 text-white',
+  'Not Interested': 'bg-gray-700 text-white',
   'Client': 'bg-purple-900 text-white',
+  'Bad Lead': 'bg-red-900 text-white',
 };
 
 export default function ContactsPage() {
@@ -85,6 +87,7 @@ export default function ContactsPage() {
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
 
   // Filter contacts by search term
   const filteredContacts = React.useMemo(() => {
@@ -124,6 +127,24 @@ export default function ContactsPage() {
     const start = (page - 1) * pageSize;
     return sortedContacts.slice(start, start + pageSize);
   }, [sortedContacts, page, pageSize]);
+
+  // Helper to get all visible contact IDs
+  const visibleContactIds = paginatedContacts.map(c => c.id);
+  const allSelected = visibleContactIds.length > 0 && visibleContactIds.every(id => selectedContacts.includes(id));
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedContacts(selectedContacts.filter(id => !visibleContactIds.includes(id)));
+    } else {
+      setSelectedContacts([...new Set([...selectedContacts, ...visibleContactIds])]);
+    }
+  };
+  const toggleSelectContact = (id: string) => {
+    setSelectedContacts(selectedContacts =>
+      selectedContacts.includes(id)
+        ? selectedContacts.filter(cid => cid !== id)
+        : [...selectedContacts, id]
+    );
+  };
 
   const handleTagChange = async (contact: Contact, tag: string) => {
     setUpdatingTagId(contact.id);
@@ -332,9 +353,97 @@ export default function ContactsPage() {
         )}
       </div>
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-gray-200 dark:border-zinc-800 overflow-x-auto w-full">
+        {/* Bulk Actions Bar */}
+        {selectedContacts.length > 0 && (
+          <div className="flex items-center gap-4 p-3 border-b dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800">
+            <span className="font-medium">{selectedContacts.length} selected</span>
+            {/* Bulk Tag */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline">Tag</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {TAG_OPTIONS.map(tag => (
+                  <DropdownMenuItem key={tag} onClick={async () => {
+                    // Bulk add tag
+                    for (const id of selectedContacts) {
+                      const contact = contacts.find(c => c.id === id);
+                      if (!contact) continue;
+                      const newTags = contact.agent_tags ? Array.from(new Set([...contact.agent_tags.split(','), tag])) : [tag];
+                      await supabase
+                        .from('listings')
+                        .update({ agent_tags: newTags.join(',') })
+                        .eq('agent_name', contact.name)
+                        .eq('agent_phone', contact.phone);
+                      contact.agent_tags = newTags.join(',');
+                    }
+                    setContacts([...contacts]);
+                  }}>{tag}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {/* Bulk Detag */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline">Remove Tag</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {TAG_OPTIONS.map(tag => (
+                  <DropdownMenuItem key={tag} onClick={async () => {
+                    // Bulk remove tag
+                    for (const id of selectedContacts) {
+                      const contact = contacts.find(c => c.id === id);
+                      if (!contact) continue;
+                      const newTags = contact.agent_tags ? contact.agent_tags.split(',').filter(t => t !== tag) : [];
+                      await supabase
+                        .from('listings')
+                        .update({ agent_tags: newTags.length ? newTags.join(',') : null })
+                        .eq('agent_name', contact.name)
+                        .eq('agent_phone', contact.phone);
+                      contact.agent_tags = newTags.length ? newTags.join(',') : null;
+                    }
+                    setContacts([...contacts]);
+                  }}>{tag}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {/* Bulk Status Change */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline">Change Status</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {STATUS_OPTIONS.map(status => (
+                  <DropdownMenuItem key={status} onClick={async () => {
+                    for (const id of selectedContacts) {
+                      const contact = contacts.find(c => c.id === id);
+                      if (!contact) continue;
+                      await supabase
+                        .from('listings')
+                        .update({ agent_status: status })
+                        .eq('agent_name', contact.name)
+                        .eq('agent_phone', contact.phone);
+                      contact.agent_status = status;
+                    }
+                    setContacts([...contacts]);
+                  }}>{status}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedContacts([])}>Clear</Button>
+          </div>
+        )}
         <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">
           <thead>
             <tr>
+              <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className="accent-blue-500 w-4 h-4 rounded"
+                />
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Brokerage</th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none" onClick={() => setSortByListings(s => s === null ? 'desc' : s === 'desc' ? 'asc' : null)}>
@@ -354,6 +463,14 @@ export default function ContactsPage() {
           <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-100 dark:divide-zinc-800">
             {paginatedContacts.map((contact) => (
               <tr key={contact.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer">
+                <td className="px-2 py-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedContacts.includes(contact.id)}
+                    onChange={() => toggleSelectContact(contact.id)}
+                    className="accent-blue-500 w-4 h-4 rounded"
+                  />
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap flex items-center gap-3" onClick={() => { setSelectedContact(contact); setContactDetailsTab('Overview'); }}>
                   {/* Avatar */}
                   <div className="h-9 w-9 rounded-full bg-gray-200 dark:bg-zinc-800 flex items-center justify-center text-lg font-bold">

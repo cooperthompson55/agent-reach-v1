@@ -27,7 +27,7 @@ const smsTemplates = [
   {
     id: "no-drone",
     name: "No Drone",
-    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} doesn't have any drone shots. I'm a local photographer and can help showcase the property with some aerial views to make it stand out. Let me know if you're interested. Thanks! - Cooper`,
+    body: `Hey {FirstName}, I noticed your listing at {PropertyAddress} doesn't have any drone shots. I'm a local photographer and can help showcase the property with some aerial views to increase interest. Let me know if you're interested. Thanks! - Cooper`,
   },
 ]
 

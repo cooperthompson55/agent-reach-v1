@@ -12,87 +12,63 @@ interface ConversationViewProps {
   onBack: () => void
 }
 
-// Mock messages for demonstration
-const generateMockMessages = (contactId: string): Message[] => {
-  const messages: Message[] = []
-  
-  if (contactId === '1') { // Sarah Johnson conversation
-    messages.push(
-      {
-        id: '1-1',
-        content: 'Hello! How can I help you today?',
-        timestamp: '10:15 AM',
-        isIncoming: true
-      },
-      {
-        id: '1-2',
-        content: 'Hi Sarah, I\'m wondering about my recent order #45678.',
-        timestamp: '10:20 AM',
-        isIncoming: false,
-        status: 'read'
-      },
-      {
-        id: '1-3',
-        content: 'I\'ll check on your order status right away.',
-        timestamp: '10:30 AM',
-        isIncoming: true
-      }
-    )
-  } else {
-    // Generic conversation for other contacts
-    messages.push(
-      {
-        id: `${contactId}-1`,
-        content: 'Hello there!',
-        timestamp: 'Yesterday',
-        isIncoming: true
-      },
-      {
-        id: `${contactId}-2`,
-        content: 'Hi, thanks for reaching out.',
-        timestamp: 'Yesterday',
-        isIncoming: false,
-        status: 'read'
-      },
-      {
-        id: `${contactId}-3`,
-        content: 'How can I assist you today?',
-        timestamp: 'Just now',
-        isIncoming: false,
-        status: 'delivered'
-      }
-    )
-  }
-  
-  return messages
-}
-
 export default function ConversationView({ contact, onBack }: ConversationViewProps) {
   const [messageText, setMessageText] = useState('')
-  const [messages, setMessages] = useState<Message[]>(() => generateMockMessages(contact.id))
+  const [messages, setMessages] = useState<Message[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [agents, setAgents] = useState<{ agent_name: string, agent_phone: string }[]>([])
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  // Fetch messages from backend
+  const fetchMessages = async () => {
+    try {
+      const res = await fetch(`/api/messages?contact=${encodeURIComponent(contact.phone)}`)
+      const data = await res.json()
+      if (data.messages) {
+        // Map Twilio messages to Message type
+        const mapped: Message[] = data.messages.map((msg: any) => ({
+          id: msg.sid,
+          content: msg.body,
+          timestamp: new Date(msg.dateSent).toLocaleString(),
+          isIncoming: msg.direction.startsWith('inbound'),
+          status: msg.status,
+        }))
+        setMessages(mapped)
+      }
+    } catch (e) {
+      // Optionally handle error
+    }
   }
 
   useEffect(() => {
-    scrollToBottom()
+    fetchMessages()
+    const interval = setInterval(fetchMessages, 10000) // Poll every 10s
+    return () => clearInterval(interval)
+  }, [contact.phone])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSendMessage = () => {
-    if (messageText.trim() === '') return
-
-    const newMessage: Message = {
-      id: `msg-${Date.now()}`,
-      content: messageText,
-      timestamp: 'Just now',
-      isIncoming: false,
-      status: 'sent'
+  useEffect(() => {
+    const fetchAgents = async () => {
+      const res = await fetch('/api/contacts')
+      const data = await res.json()
+      if (data.contacts) setAgents(data.contacts)
     }
+    fetchAgents()
+  }, [])
 
-    setMessages([...messages, newMessage])
-    setMessageText('')
+  const handleSendMessage = async () => {
+    if (messageText.trim() === '') return
+    try {
+      await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: contact.phone, body: messageText })
+      })
+      setMessageText('')
+      fetchMessages() // Refresh after sending
+    } catch (e) {}
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -101,6 +77,10 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
       handleSendMessage()
     }
   }
+
+  // Find agent name for this conversation
+  const agent = agents.find(a => a.agent_phone === contact.phone)
+  const displayName = agent ? agent.agent_name : contact.phone
 
   return (
     <div className="flex flex-col h-full w-full bg-white dark:bg-zinc-900">
@@ -117,11 +97,11 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
         <div className="flex items-center space-x-3 flex-1">
           <Avatar className="h-10 w-10 bg-gray-200 dark:bg-zinc-800">
             <div className="font-medium text-lg text-gray-700 dark:text-zinc-100">
-              {contact.name.charAt(0)}
+              {displayName.charAt(0)}
             </div>
           </Avatar>
           <div>
-            <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">{contact.name}</h3>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">{displayName}</h3>
             {contact.role && <p className="text-xs text-gray-500 dark:text-zinc-400">{contact.role}</p>}
           </div>
         </div>

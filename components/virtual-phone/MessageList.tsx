@@ -1,56 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Contact } from './VirtualPhoneInterface'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
 import { Search } from 'lucide-react'
-
-// Mock data for demonstration
-const MOCK_CONTACTS: Contact[] = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    phone: '+1234567890',
-    lastMessage: "I'll check on your order status right away.",
-    lastMessageTime: '10:30 AM',
-    isOnline: true,
-    role: 'Customer Support'
-  },
-  {
-    id: '2',
-    name: 'Michael Chen',
-    phone: '+1987654321',
-    lastMessage: 'Have you tried restarting the application?',
-    lastMessageTime: 'Yesterday',
-    unreadCount: 2,
-    isOnline: true
-  },
-  {
-    id: '3',
-    name: 'Jessica Williams',
-    phone: '+1122334455',
-    lastMessage: 'Here\'s the quote you requested.',
-    lastMessageTime: 'Yesterday',
-    isOnline: false
-  },
-  {
-    id: '4',
-    name: 'David Rodriguez',
-    phone: '+1555666777',
-    lastMessage: 'Your subscription will renew next month.',
-    lastMessageTime: 'Monday',
-    isOnline: true
-  },
-  {
-    id: '5',
-    name: 'Emma Thompson',
-    phone: '+1999888777',
-    lastMessage: 'I\'ve processed your refund request.',
-    lastMessageTime: 'Last week',
-    isOnline: false
-  }
-]
 
 interface MessageListProps {
   onSelectContact: (contact: Contact) => void
@@ -58,7 +12,44 @@ interface MessageListProps {
 
 export default function MessageList({ onSelectContact }: MessageListProps) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [contacts, setContacts] = useState(MOCK_CONTACTS)
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [agents, setAgents] = useState<{ agent_name: string, agent_phone: string }[]>([])
+
+  const TWILIO_PHONE = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || ''
+
+  useEffect(() => {
+    const fetchAgents = async () => {
+      const res = await fetch('/api/contacts')
+      const data = await res.json()
+      if (data.contacts) setAgents(data.contacts)
+    }
+    fetchAgents()
+  }, [])
+
+  useEffect(() => {
+    const fetchContacts = async () => {
+      const res = await fetch('/api/messages?contact=all')
+      const data = await res.json()
+      if (data.contacts) {
+        // Map Twilio message to Contact type, using agent name if available
+        const mapped: Contact[] = data.contacts.map((msg: any, idx: number) => {
+          // Determine the other party (not your own Twilio number)
+          const otherPhone = msg.from === TWILIO_PHONE ? msg.to : msg.from
+          if (otherPhone === TWILIO_PHONE) return null // skip self
+          const agent = agents.find(a => a.agent_phone === otherPhone)
+          return {
+            id: otherPhone + idx,
+            name: agent ? agent.agent_name : otherPhone,
+            phone: otherPhone,
+            lastMessage: msg.body,
+            lastMessageTime: new Date(msg.dateSent).toLocaleString(),
+          }
+        }).filter(Boolean)
+        setContacts(mapped)
+      }
+    }
+    fetchContacts()
+  }, [agents])
 
   const filteredContacts = contacts.filter(contact => 
     contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

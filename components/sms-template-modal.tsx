@@ -116,16 +116,15 @@ export default function SmsTemplateModal({
     if (contacts && contacts.length > 0) {
       // Bulk mode: Only send one message per contact, using the first selected listing for that contact
       const sendPairs: { contact: typeof contacts[0]; listing: any | null }[] = [];
-      const seen = new Set<string>();
+      const seenPhones = new Set<string>();
       for (const contact of contacts) {
         if (!contact.phone) continue;
-        const agentKey = `${contact.name}|${contact.phone}`;
+        if (seenPhones.has(contact.phone)) continue;
+        const agentKey = Object.keys(agentListingsMap).find(key => key.endsWith('|' + contact.phone)) || `${contact.name}|${contact.phone}`;
         const agentListings = (agentListingsMap[agentKey] || []).filter(l => selectedListingIds.includes(l.id));
         const firstListing = agentListings.length > 0 ? agentListings[0] : null;
-        if (!seen.has(contact.phone)) {
-          sendPairs.push({ contact, listing: firstListing });
-          seen.add(contact.phone);
-        }
+        sendPairs.push({ contact, listing: firstListing });
+        seenPhones.add(contact.phone);
       }
       totalCount = sendPairs.length;
       const BATCH_SIZE = 10;

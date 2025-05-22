@@ -61,6 +61,15 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
           const agent = agents.find(a => a.agent_phone === otherPhone)
           // Determine if the last message was received (inbound)
           const isReceived = msg.direction && msg.direction.startsWith('inbound');
+          // Use a stable message ID: sid if available, else timestamp string, else idx
+          let stableId: string
+          if (msg.sid) {
+            stableId = msg.sid
+          } else if (msg.dateSent) {
+            stableId = new Date(msg.dateSent).getTime().toString()
+          } else {
+            stableId = idx.toString()
+          }
           return {
             id: otherPhone + idx,
             name: agent ? agent.agent_name : otherPhone,
@@ -68,7 +77,7 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
             lastMessage: msg.body,
             lastMessageTime: new Date(msg.dateSent).toLocaleString(),
             isReceived,
-            lastMessageId: msg.sid || msg.id || msg.dateSent, // Use sid if available, fallback to id or dateSent
+            lastMessageId: stableId,
             lastMessageDirection: msg.direction,
           }
         }).filter(Boolean)
@@ -109,9 +118,9 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
 
   // Helper to mark as read and persist immediately
   const markAsRead = (contact: Contact) => {
-    if (!contact.isReceived) return
+    if (!contact.isReceived || !contact.lastMessageId) return
     setReadConversations(prev => {
-      const updated = { ...prev, [contact.phone]: contact.lastMessageId }
+      const updated = { ...prev, [contact.phone]: contact.lastMessageId as string }
       localStorage.setItem('virtualPhoneReadConversations', JSON.stringify(updated))
       return updated
     })

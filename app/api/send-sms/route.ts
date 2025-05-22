@@ -48,9 +48,22 @@ export async function POST(request: Request) {
       direction: 'outbound',
     });
     if (data && data.id) {
+      // Determine if we should update status
+      let updateFields: any = { contact_logs: logs };
+      const lockedStatuses = ['Interested', 'Not Interested', 'Client', 'Bad Lead'];
+      // Fetch current status
+      const { data: statusData } = await supabase
+        .from('listings')
+        .select('agent_status')
+        .eq('id', data.id)
+        .single();
+      const currentStatus = statusData?.agent_status || 'Not Contacted';
+      if (!lockedStatuses.includes(currentStatus) && currentStatus !== 'Contacted') {
+        updateFields = { ...updateFields, agent_status: 'Contacted' };
+      }
       await supabase
         .from('listings')
-        .update({ contact_logs: logs })
+        .update(updateFields)
         .eq('id', data.id);
     }
 

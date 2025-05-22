@@ -75,6 +75,7 @@ export default function ContactsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortByListings, setSortByListings] = useState<null | 'asc' | 'desc'>(null);
+  const [sortByInteractions, setSortByInteractions] = useState<null | 'asc' | 'desc'>(null);
   const [updatingTagId, setUpdatingTagId] = useState<string | null>(null);
   const [filterTags, setFilterTags] = useState<string[]>([]);
   const [contactDetailsTab, setContactDetailsTab] = useState<string>('Overview');
@@ -117,13 +118,30 @@ export default function ContactsPage() {
     return result;
   }, [contacts, searchTerm, filterTags, filterStatus]);
 
-  // Sort by listings
+  // Sort by listings or interactions
   const sortedContacts = React.useMemo(() => {
-    if (!sortByListings) return filteredContacts;
-    return [...filteredContacts].sort((a, b) =>
-      sortByListings === 'asc' ? a.listings - b.listings : b.listings - a.listings
-    );
-  }, [filteredContacts, sortByListings]);
+    let result = filteredContacts;
+    if (sortByListings) {
+      result = [...result].sort((a, b) =>
+        sortByListings === 'asc' ? a.listings - b.listings : b.listings - a.listings
+      );
+    } else if (sortByInteractions) {
+      result = [...result].sort((a, b) => {
+        const getLogs = (c: Contact) => {
+          let logs = [];
+          if (Array.isArray(c.contact_logs)) logs = c.contact_logs;
+          else if (typeof c.contact_logs === 'string' && (c.contact_logs + '').trim().length > 0) {
+            try { logs = JSON.parse(c.contact_logs); } catch { logs = []; }
+          }
+          return logs.length;
+        };
+        return sortByInteractions === 'asc'
+          ? getLogs(a) - getLogs(b)
+          : getLogs(b) - getLogs(a);
+      });
+    }
+    return result;
+  }, [filteredContacts, sortByListings, sortByInteractions]);
 
   // Calculate pagination
   const totalPages = pageSize === -1 ? 1 : Math.ceil(sortedContacts.length / pageSize);
@@ -495,7 +513,10 @@ export default function ContactsPage() {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Brokerage</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none" onClick={() => setSortByListings(s => s === null ? 'desc' : s === 'desc' ? 'asc' : null)}>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none" onClick={() => {
+                setSortByListings(s => s === null ? 'desc' : s === 'desc' ? 'asc' : null);
+                setSortByInteractions(null);
+              }}>
                 Active Listings
                 <span className="ml-1">
                   {sortByListings === 'desc' && '▼'}
@@ -503,7 +524,17 @@ export default function ContactsPage() {
                   {sortByListings === null && ''}
                 </span>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Interactions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider cursor-pointer select-none" onClick={() => {
+                setSortByInteractions(s => s === null ? 'desc' : s === 'desc' ? 'asc' : null);
+                setSortByListings(null);
+              }}>
+                Interactions
+                <span className="ml-1">
+                  {sortByInteractions === 'desc' && '▼'}
+                  {sortByInteractions === 'asc' && '▲'}
+                  {sortByInteractions === null && ''}
+                </span>
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Tags</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Status</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Actions</th>
@@ -538,21 +569,23 @@ export default function ContactsPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-center cursor-pointer" onClick={() => { setSelectedContact(contact); setContactDetailsTab('Listings'); }}>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-black dark:bg-zinc-200 text-white dark:text-zinc-900">{contact.listings}</span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-zinc-100">{
-                  (() => {
-                    let logs = [];
-                    if (Array.isArray(contact.contact_logs)) {
-                      logs = contact.contact_logs;
-                    } else if (typeof contact.contact_logs === 'string' && (contact.contact_logs + '').trim().length > 0) {
-                      try {
-                        logs = JSON.parse(contact.contact_logs);
-                      } catch {
-                        logs = [];
+                <td className="px-6 py-4 whitespace-nowrap text-center cursor-pointer" onClick={() => { setSelectedContact(contact); setContactDetailsTab('Interactions'); }}>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-black dark:bg-zinc-200 text-white dark:text-zinc-900">{
+                    (() => {
+                      let logs = [];
+                      if (Array.isArray(contact.contact_logs)) {
+                        logs = contact.contact_logs;
+                      } else if (typeof contact.contact_logs === 'string' && (contact.contact_logs + '').trim().length > 0) {
+                        try {
+                          logs = JSON.parse(contact.contact_logs);
+                        } catch {
+                          logs = [];
+                        }
                       }
-                    }
-                    return logs.length;
-                  })()
-                }</td>
+                      return logs.length;
+                    })()
+                  }</span>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-zinc-100 max-w-[220px]">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

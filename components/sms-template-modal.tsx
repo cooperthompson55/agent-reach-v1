@@ -29,6 +29,11 @@ const smsTemplates = [
     name: "No Drone",
     body: `Hey {FirstName}, saw your listing at {PropertyAddress} and thought some drone shots could really make it stand out. I'm a local real estate photographer who captures stunning aerial views that help buyers see the full property layout and neighborhood context. Let me know if you're interested in adding some drone shots to your listing. Thanks! - Cooper`,
 },
+{
+  id: "pro-photos",
+  name: "Pro Photos",
+  body: `Hey {FirstName}, saw your listing at {PropertyAddress} and the photography looks great! I'm a local real estate photographer always looking to connect with agents who value quality visuals. Would love to introduce myself in case you ever need a photographer for future listings. Thanks! - Cooper, Owner of RePhotos.ca`,
+},
 ]
 
 interface SmsTemplate {

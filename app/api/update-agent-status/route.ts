@@ -23,14 +23,15 @@ export async function POST(request: Request) {
   // If logEntry is provided, fetch current logs, append, and update
   if (logEntry) {
     // Get the first matching row
-    const { data, error: fetchError } = await supabase
+    let logQuery = supabase
       .from('listings')
       .select('contact_logs')
       .eq('agent_name', agentName)
       .eq(agentEmail ? 'agent_email' : 'agent_phone', agentEmail || agentPhone)
-      .eq('id', property_id || undefined)
-      .limit(1)
-      .single()
+    if (property_id) {
+      logQuery = logQuery.eq('id', property_id)
+    }
+    const { data, error: fetchError } = await logQuery.limit(1).single()
     if (fetchError) {
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
@@ -44,12 +45,15 @@ export async function POST(request: Request) {
     }
     logs.push(logEntry)
     // Update both status and logs
-    const { error: updateError } = await supabase
+    let updateQuery = supabase
       .from('listings')
       .update({ agent_status: status, contact_logs: logs })
       .eq('agent_name', agentName)
       .eq(agentEmail ? 'agent_email' : 'agent_phone', agentEmail || agentPhone)
-      .eq('id', property_id || undefined)
+    if (property_id) {
+      updateQuery = updateQuery.eq('id', property_id)
+    }
+    const { error: updateError } = await updateQuery
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }

@@ -207,7 +207,7 @@ export default function ContactsPage() {
     setRefreshMessage(null);
     const { data: listingsData, error } = await supabase
       .from('listings')
-      .select('agent_name, agent_email, agent_phone, brokerage_name, instagram_account, property_address, property_city, agent_tags, agent_status, contact_logs');
+      .select('agent_name, agent_email, agent_phone, brokerage_name, instagram_account, property_address, property_city, agent_tags, agent_status, contact_logs, created_at');
 
     if (error) {
       console.error('Error fetching listings:', error);
@@ -219,6 +219,7 @@ export default function ContactsPage() {
 
     if (listingsData) {
       const agentMap = new Map<string, { contact: Contact, addresses: Set<string> }>();
+      const newListingMap = new Map<string, boolean>();
       const uniqueAgentKeys = new Set();
 
       listingsData.forEach((listing) => {
@@ -247,6 +248,18 @@ export default function ContactsPage() {
             .eq('agent_phone', listing.agent_phone);
         }
 
+        // Check if this listing is less than 1 day old
+        let isNew = false;
+        if (listing.created_at) {
+          const createdAt = new Date(listing.created_at);
+          const now = new Date();
+          const diffMs = now.getTime() - createdAt.getTime();
+          if (diffMs < 24 * 60 * 60 * 1000) {
+            isNew = true;
+          }
+        }
+        if (isNew) newListingMap.set(agentKey, true);
+
         if (agentMap.has(agentKey)) {
           const entry = agentMap.get(agentKey)!;
           if (listing.property_address && !entry.addresses.has(listing.property_address)) {
@@ -274,7 +287,32 @@ export default function ContactsPage() {
           });
         }
       });
-      setContacts(Array.from(agentMap.values()).map(entry => entry.contact));
+      // After collecting all contacts, add 'New' tag if needed
+      const contactsArr = Array.from(agentMap.values()).map(entry => {
+        let tags = entry.contact.agent_tags ? entry.contact.agent_tags.split(',') : [];
+        const agentKey = `${entry.contact.name}|${entry.contact.phone || ''}`;
+        const hasNew = newListingMap.get(agentKey);
+        const hadNewTag = tags.includes('New');
+        if (hasNew && !hadNewTag) {
+          tags.push('New');
+          // Update in Supabase
+          supabase
+            .from('listings')
+            .update({ agent_tags: tags.join(',') })
+            .eq('agent_name', entry.contact.name)
+            .eq('agent_phone', entry.contact.phone);
+        } else if (!hasNew && hadNewTag) {
+          tags = tags.filter(t => t !== 'New');
+          // Update in Supabase
+          supabase
+            .from('listings')
+            .update({ agent_tags: tags.length ? tags.join(',') : null })
+            .eq('agent_name', entry.contact.name)
+            .eq('agent_phone', entry.contact.phone);
+        }
+        return { ...entry.contact, agent_tags: tags.join(',') };
+      });
+      setContacts(contactsArr);
       setRefreshMessage('Contacts refreshed!');
       setTimeout(() => setRefreshMessage(null), 2000);
     }

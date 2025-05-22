@@ -108,22 +108,32 @@ export default function SmsTemplateModal({
     setIsSending(true)
     setError(null)
     setSuccess(null)
+    let progressCount = 0;
+    let totalCount = 0;
+    let progressResults: string[] = [];
     if (contacts && contacts.length > 0) {
       // Bulk mode
-      let results: string[] = [];
+      // 1. Build unique (contact, listing) pairs
+      const sendPairs: { contact: typeof contacts[0]; listing: any }[] = [];
+      const seen = new Set<string>();
       for (const contact of contacts) {
-        if (!contact.phone) {
-          results.push(`${contact.name}: No phone number`);
-          continue;
-        }
-        // Only send listings that belong to this contact and are selected
+        if (!contact.phone) continue;
         const agentKey = `${contact.name}|${contact.phone}`;
         const agentListings = (agentListingsMap[agentKey] || []).filter(l => selectedListingIds.includes(l.id));
-        if (agentListings.length === 0) {
-          results.push(`${contact.name}: No listings selected`);
-          continue;
-        }
         for (const listing of agentListings) {
+          const pairKey = `${contact.phone}|${listing.id}`;
+          if (!seen.has(pairKey)) {
+            sendPairs.push({ contact, listing });
+            seen.add(pairKey);
+          }
+        }
+      }
+      totalCount = sendPairs.length;
+      // 2. Send in batches
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < sendPairs.length; i += BATCH_SIZE) {
+        const batch = sendPairs.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async ({ contact, listing }) => {
           const finalBody = replaceVariables(smsBody, contact.name, contact.phone, listing);
           try {
             const response = await fetch('/api/send-sms', {
@@ -148,13 +158,19 @@ export default function SmsTemplateModal({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ agentPhone: contact.phone, agentName: contact.name, status: 'Contacted', logEntry, property_id: listing.id })
             });
-            results.push(`${contact.name} (${listing.property_address}): Sent`);
+            progressResults.push(`${contact.name} (${listing.property_address}): Sent`);
           } catch (err) {
-            results.push(`${contact.name} (${listing.property_address}): Failed`);
+            progressResults.push(`${contact.name} (${listing.property_address}): Failed`);
           }
+          progressCount++;
+          setSuccess(`Sent ${progressCount} of ${totalCount} messages...\n${progressResults.slice(-10).join('\n')}`);
+        }));
+        // Throttle between batches
+        if (i + BATCH_SIZE < sendPairs.length) {
+          await new Promise(res => setTimeout(res, 500));
         }
       }
-      setSuccess(results.join('\n'));
+      setSuccess(progressResults.join('\n'));
       setIsSending(false);
       setTimeout(() => { setSuccess(null); onClose(); }, 2000);
       return;

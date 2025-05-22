@@ -88,6 +88,7 @@ export default function ContactsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [bulkSmsModalOpen, setBulkSmsModalOpen] = useState(false);
   const [bulkSmsContacts, setBulkSmsContacts] = useState<Contact[]>([]);
   const [bulkSmsListings, setBulkSmsListings] = useState<any[]>([]);
@@ -142,12 +143,30 @@ export default function ContactsPage() {
       setSelectedContacts([...new Set([...selectedContacts, ...visibleContactIds])]);
     }
   };
-  const toggleSelectContact = (id: string) => {
-    setSelectedContacts(selectedContacts =>
-      selectedContacts.includes(id)
-        ? selectedContacts.filter(cid => cid !== id)
-        : [...selectedContacts, id]
-    );
+  const toggleSelectContact = (id: string, index: number, event?: React.MouseEvent) => {
+    if (event && event.shiftKey && lastSelectedIndex !== null) {
+      // Shift-click: select range
+      const start = Math.min(lastSelectedIndex, index);
+      const end = Math.max(lastSelectedIndex, index);
+      const idsInRange = paginatedContacts.slice(start, end + 1).map(c => c.id);
+      setSelectedContacts(prev => Array.from(new Set([...prev, ...idsInRange])));
+    } else if (event && (event.metaKey || event.ctrlKey)) {
+      // Cmd/Ctrl-click: toggle individual
+      setSelectedContacts(selectedContacts =>
+        selectedContacts.includes(id)
+          ? selectedContacts.filter(cid => cid !== id)
+          : [...selectedContacts, id]
+      );
+      setLastSelectedIndex(index);
+    } else {
+      // Regular click: toggle and set last index
+      setSelectedContacts(selectedContacts =>
+        selectedContacts.includes(id)
+          ? selectedContacts.filter(cid => cid !== id)
+          : [...selectedContacts, id]
+      );
+      setLastSelectedIndex(index);
+    }
   };
 
   const handleTagChange = async (contact: Contact, tag: string) => {
@@ -491,13 +510,14 @@ export default function ContactsPage() {
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-100 dark:divide-zinc-800">
-            {paginatedContacts.map((contact) => (
+            {paginatedContacts.map((contact, idx) => (
               <tr key={contact.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer">
                 <td className="px-2 py-4">
                   <input
                     type="checkbox"
                     checked={selectedContacts.includes(contact.id)}
-                    onChange={() => toggleSelectContact(contact.id)}
+                    onClick={e => { e.preventDefault(); toggleSelectContact(contact.id, idx, e); }}
+                    readOnly
                     className="accent-blue-500 w-4 h-4 rounded"
                   />
                 </td>

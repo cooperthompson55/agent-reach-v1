@@ -43,12 +43,12 @@ export async function GET(request: Request) {
     const messages = await twilio.messages.list({
       to: contact,
       from: fromPhone,
-      limit: 50,
+      limit: 150,
     });
     const messagesFrom = await twilio.messages.list({
       from: contact,
       to: fromPhone,
-      limit: 50,
+      limit: 150,
     });
     // Combine and sort by date
     const allMessages = [...messages, ...messagesFrom].sort((a, b) => new Date(a.dateSent).getTime() - new Date(b.dateSent).getTime());

@@ -251,25 +251,40 @@ export default function SmsTemplateModal({
               </div>
               <div className="mb-2">
                 <label className="block text-sm font-medium mb-1">Listings to include</label>
-                <div className="max-h-32 overflow-y-auto border rounded p-2 bg-gray-50 dark:bg-zinc-800 text-xs flex flex-col gap-1">
-                  {listings.map(listing => (
-                    <label key={listing.id} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedListingIds.includes(listing.id)}
-                        onChange={e => {
-                          setSelectedListingIds(ids =>
-                            e.target.checked
-                              ? [...ids, listing.id]
-                              : ids.filter(id => id !== listing.id)
-                          );
-                        }}
-                        className="accent-blue-500"
-                      />
-                      <span>{listing.property_address}, {listing.property_city}</span>
-                    </label>
-                  ))}
-                  {listings.length === 0 && <span className="text-gray-400">No listings available</span>}
+                <div className="max-h-32 overflow-y-auto border rounded p-2 bg-gray-50 dark:bg-zinc-800 text-xs flex flex-col gap-2">
+                  {/* Group listings by agent_name */}
+                  {(() => {
+                    if (!listings.length) return <span className="text-gray-400">No listings available</span>;
+                    // Group listings by agent_name
+                    const grouped: Record<string, typeof listings> = {};
+                    listings.forEach(listing => {
+                      const agent = listing.agent_name || 'Unknown Agent';
+                      if (!grouped[agent]) grouped[agent] = [];
+                      grouped[agent].push(listing);
+                    });
+                    return Object.entries(grouped).map(([agent, agentListings]) => (
+                      <div key={agent} className="mb-1">
+                        <div className="font-semibold text-blue-700 dark:text-blue-300 mb-1">{agent}</div>
+                        {agentListings.map(listing => (
+                          <label key={listing.id} className="flex items-center gap-2 cursor-pointer ml-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedListingIds.includes(listing.id)}
+                              onChange={e => {
+                                setSelectedListingIds(ids =>
+                                  e.target.checked
+                                    ? [...ids, listing.id]
+                                    : ids.filter(id => id !== listing.id)
+                                );
+                              }}
+                              className="accent-blue-500"
+                            />
+                            <span>{listing.property_address}, {listing.property_city}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             </>

@@ -94,6 +94,7 @@ export default function ContactsPage() {
   const [bulkSmsContacts, setBulkSmsContacts] = useState<Contact[]>([]);
   const [bulkSmsListings, setBulkSmsListings] = useState<any[]>([]);
   const [bulkSmsAgentListingsMap, setBulkSmsAgentListingsMap] = useState<Record<string, any[]>>({});
+  const [newMessagesCount, setNewMessagesCount] = useState<number>(0);
 
   // Filter contacts by search term
   const filteredContacts = React.useMemo(() => {
@@ -326,6 +327,42 @@ export default function ContactsPage() {
     return () => window.removeEventListener('focus', onFocus);
   }, []);
 
+  useEffect(() => {
+    // Fetch new messages count
+    const fetchNewMessagesCount = async () => {
+      try {
+        const res = await fetch('/api/messages?contact=all');
+        const data = await res.json();
+        const messages = data.contacts || data.messages;
+        if (!messages) return setNewMessagesCount(0);
+        // Get Twilio phone number from env (client-side safe)
+        const TWILIO_PHONE = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || '';
+        // Group messages by contact (other party)
+        const contactMap = new Map();
+        messages.forEach((msg: any) => {
+          const otherPhone = msg.from === TWILIO_PHONE ? msg.to : msg.from;
+          if (!otherPhone || otherPhone === TWILIO_PHONE) return;
+          if (!contactMap.has(otherPhone)) contactMap.set(otherPhone, []);
+          contactMap.get(otherPhone).push(msg);
+        });
+        let count = 0;
+        contactMap.forEach((msgs: any[]) => {
+          // Sort by date
+          msgs.sort((a, b) => new Date(a.dateSent).getTime() - new Date(b.dateSent).getTime());
+          const lastMsg = msgs[msgs.length - 1];
+          // If last message is inbound (from contact to Twilio), count as new
+          if (lastMsg && lastMsg.direction && lastMsg.direction.startsWith('inbound')) {
+            count++;
+          }
+        });
+        setNewMessagesCount(count);
+      } catch (e) {
+        setNewMessagesCount(0);
+      }
+    };
+    fetchNewMessagesCount();
+  }, []);
+
   const handleTagAll = async () => {
     // 1. Fetch all listings with photo_count < 10
     const { data: lowPhotoListings, error } = await supabase
@@ -370,7 +407,10 @@ export default function ContactsPage() {
     <div className="w-full py-8 px-4 md:px-8">
       {/* <h1 className="text-4xl font-bold mb-2">Lead Manager</h1> */}
       <h1 className="text-4xl font-bold mb-2">Contacts</h1>
-      <div className="text-gray-500 dark:text-zinc-400 mb-4">Total Contacts: {filteredContacts.length}</div>
+      <div className="text-gray-500 dark:text-zinc-400 mb-4">
+        Total Contacts: {filteredContacts.length}
+        <span className="ml-4 text-blue-600 dark:text-blue-400 font-semibold">New Messages: {newMessagesCount}</span>
+      </div>
       <div className="flex items-center gap-2 mb-4">
         <Input
           placeholder="Search contacts..."

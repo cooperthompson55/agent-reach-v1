@@ -16,6 +16,7 @@ export type Contact = {
   isOnline?: boolean
   avatar?: string
   role?: string
+  isReceived?: boolean
 }
 
 export type Message = {

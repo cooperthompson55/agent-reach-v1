@@ -750,6 +750,11 @@ export default function LeadTable() {
   return (
     <div className="flex flex-col w-full">
       <div className="flex flex-col gap-6 p-6">
+        <h1 className="text-4xl font-bold mb-2">Listings Manager</h1>
+        {/* Total Listings Display */}
+        <div className="mb-2 text-gray-500 dark:text-zinc-400 font-semibold text-lg">
+          Total Listings: {leads.length}
+        </div>
         {/* Search and Filter Section */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div className="relative w-full sm:w-64">

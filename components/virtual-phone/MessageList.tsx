@@ -38,12 +38,15 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
           const otherPhone = msg.from === TWILIO_PHONE ? msg.to : msg.from
           if (otherPhone === TWILIO_PHONE) return null // skip self
           const agent = agents.find(a => a.agent_phone === otherPhone)
+          // Determine if the last message was received (inbound)
+          const isReceived = msg.direction && msg.direction.startsWith('inbound');
           return {
             id: otherPhone + idx,
             name: agent ? agent.agent_name : otherPhone,
             phone: otherPhone,
             lastMessage: msg.body,
             lastMessageTime: new Date(msg.dateSent).toLocaleString(),
+            isReceived,
           }
         }).filter(Boolean)
         setContacts(mapped)
@@ -87,6 +90,9 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
                 </Avatar>
                 {contact.isOnline && (
                   <span className="absolute bottom-0 right-0 rounded-full h-3 w-3 bg-green-500 ring-2 ring-white dark:ring-zinc-900"></span>
+                )}
+                {contact.isReceived && (
+                  <span className="absolute top-0 right-0 rounded-full h-3 w-3 bg-blue-500 ring-2 ring-white dark:ring-zinc-900"></span>
                 )}
               </div>
               

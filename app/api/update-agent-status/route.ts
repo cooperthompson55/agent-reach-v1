@@ -22,40 +22,34 @@ export async function POST(request: Request) {
   }
   // If logEntry is provided, fetch current logs, append, and update
   if (logEntry) {
-    // Get the first matching row
+    // Get all matching rows for this agent
     let logQuery = supabase
       .from('listings')
-      .select('contact_logs')
+      .select('id, contact_logs')
       .eq('agent_name', agentName)
       .eq(agentEmail ? 'agent_email' : 'agent_phone', agentEmail || agentPhone)
-    if (property_id) {
-      logQuery = logQuery.eq('id', property_id)
-    }
-    const { data, error: fetchError } = await logQuery.limit(1).single()
+    const { data: rows, error: fetchError } = await logQuery
     if (fetchError) {
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
-    let logs = []
-    if (data && data.contact_logs) {
-      try {
-        logs = Array.isArray(data.contact_logs) ? data.contact_logs : JSON.parse(data.contact_logs)
-      } catch {
-        logs = []
+    if (!rows || rows.length === 0) {
+      return NextResponse.json({ error: 'No listings found for this agent' }, { status: 404 })
+    }
+    // For each row, append the log and set status
+    for (const row of rows) {
+      let logs = []
+      if (row && row.contact_logs) {
+        try {
+          logs = Array.isArray(row.contact_logs) ? row.contact_logs : JSON.parse(row.contact_logs)
+        } catch {
+          logs = []
+        }
       }
-    }
-    logs.push(logEntry)
-    // Update both status and logs
-    let updateQuery = supabase
-      .from('listings')
-      .update({ agent_status: status, contact_logs: logs })
-      .eq('agent_name', agentName)
-      .eq(agentEmail ? 'agent_email' : 'agent_phone', agentEmail || agentPhone)
-    if (property_id) {
-      updateQuery = updateQuery.eq('id', property_id)
-    }
-    const { error: updateError } = await updateQuery
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      logs.push(logEntry)
+      await supabase
+        .from('listings')
+        .update({ agent_status: status, contact_logs: logs })
+        .eq('id', row.id)
     }
     return NextResponse.json({ success: true })
   }

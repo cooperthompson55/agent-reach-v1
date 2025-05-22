@@ -12,7 +12,7 @@ const smsTemplates = [
   {
     id: "low-quality",
     name: "Low Quality",
-    body: `Hey {FirstName}, saw your listing at {PropertyAddress} and noticed the photos could be upgraded to really make the property shine. I'm a local photographer and can help with photos for this listing. Let me know if you're interested in upgrading the photos. Thanks! - Cooper`,
+    body: `Hey {FirstName}, saw your listing at {PropertyAddress} and noticed the photos could be upgraded to really make the property shine. I'm a local real estate photographer who helps agents showcase their listings with crisp, professional shots that grab attention and generate more interest. Would love to help with this property's presentation if you're interested. Thanks! - Cooper`,
   },
   {
     id: "zero-photos",

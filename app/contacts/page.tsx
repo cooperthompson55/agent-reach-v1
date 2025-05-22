@@ -516,7 +516,7 @@ export default function ContactsPage() {
                   <input
                     type="checkbox"
                     checked={selectedContacts.includes(contact.id)}
-                    onClick={e => { e.preventDefault(); toggleSelectContact(contact.id, idx, e); }}
+                    onClick={e => toggleSelectContact(contact.id, idx, e)}
                     readOnly
                     className="accent-blue-500 w-4 h-4 rounded"
                   />

@@ -99,10 +99,12 @@ export default function SmsTemplateModal({
   }
 
   useEffect(() => {
-    if (smsTemplates.length > 0) {
-      applyTemplate(smsTemplates[0])
+    if (isOpen && smsTemplates.length > 0) {
+      setSelectedTemplate(smsTemplates[0]);
+      setSmsBody(smsTemplates[0].body);
     }
-  }, [agentName, agentPhone, selectedListing, contacts, listings])
+    // eslint-disable-next-line
+  }, [isOpen]);
 
   const handleSendSms = async () => {
     setIsSending(true)
@@ -112,24 +114,20 @@ export default function SmsTemplateModal({
     let totalCount = 0;
     let progressResults: string[] = [];
     if (contacts && contacts.length > 0) {
-      // Bulk mode
-      // 1. Build unique (contact, listing) pairs
-      const sendPairs: { contact: typeof contacts[0]; listing: any }[] = [];
+      // Bulk mode: Only send one message per contact, using the first selected listing for that contact
+      const sendPairs: { contact: typeof contacts[0]; listing: any | null }[] = [];
       const seen = new Set<string>();
       for (const contact of contacts) {
         if (!contact.phone) continue;
         const agentKey = `${contact.name}|${contact.phone}`;
         const agentListings = (agentListingsMap[agentKey] || []).filter(l => selectedListingIds.includes(l.id));
-        for (const listing of agentListings) {
-          const pairKey = `${contact.phone}|${listing.id}`;
-          if (!seen.has(pairKey)) {
-            sendPairs.push({ contact, listing });
-            seen.add(pairKey);
-          }
+        const firstListing = agentListings.length > 0 ? agentListings[0] : null;
+        if (!seen.has(contact.phone)) {
+          sendPairs.push({ contact, listing: firstListing });
+          seen.add(contact.phone);
         }
       }
       totalCount = sendPairs.length;
-      // 2. Send in batches
       const BATCH_SIZE = 10;
       for (let i = 0; i < sendPairs.length; i += BATCH_SIZE) {
         const batch = sendPairs.slice(i, i + BATCH_SIZE);
@@ -148,24 +146,23 @@ export default function SmsTemplateModal({
               type: 'sms',
               message: finalBody,
               timestamp: new Date().toISOString(),
-              property_id: listing.id || null,
-              property_address: listing.property_address || null,
+              property_id: listing?.id || null,
+              property_address: listing?.property_address || null,
               sent_by: 'Cooper',
               to: contact.phone,
             };
             await fetch('/api/update-agent-status', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ agentPhone: contact.phone, agentName: contact.name, status: 'Contacted', logEntry, property_id: listing.id })
+              body: JSON.stringify({ agentPhone: contact.phone, agentName: contact.name, status: 'Contacted', logEntry, property_id: listing?.id })
             });
-            progressResults.push(`${contact.name} (${listing.property_address}): Sent`);
+            progressResults.push(`${contact.name} (${listing?.property_address || 'No property'}): Sent`);
           } catch (err) {
-            progressResults.push(`${contact.name} (${listing.property_address}): Failed`);
+            progressResults.push(`${contact.name} (${listing?.property_address || 'No property'}): Failed`);
           }
           progressCount++;
           setSuccess(`Sent ${progressCount} of ${totalCount} messages...\n${progressResults.slice(-10).join('\n')}`);
         }));
-        // Throttle between batches
         if (i + BATCH_SIZE < sendPairs.length) {
           await new Promise(res => setTimeout(res, 500));
         }

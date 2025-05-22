@@ -454,7 +454,7 @@ export default function ContactsPage() {
                   {sortByListings === null && ''}
                 </span>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Last Contact</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Interactions</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Tags</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Status</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Actions</th>
@@ -488,7 +488,21 @@ export default function ContactsPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-center cursor-pointer" onClick={() => { setSelectedContact(contact); setContactDetailsTab('Listings'); }}>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-black dark:bg-zinc-200 text-white dark:text-zinc-900">{contact.listings}</span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-zinc-100">{contact.lastContact}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-zinc-100">{
+                  (() => {
+                    let logs = [];
+                    if (Array.isArray(contact.contact_logs)) {
+                      logs = contact.contact_logs;
+                    } else if (typeof contact.contact_logs === 'string' && (contact.contact_logs + '').trim().length > 0) {
+                      try {
+                        logs = JSON.parse(contact.contact_logs);
+                      } catch {
+                        logs = [];
+                      }
+                    }
+                    return logs.length;
+                  })()
+                }</td>
                 <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-zinc-100 max-w-[220px]">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

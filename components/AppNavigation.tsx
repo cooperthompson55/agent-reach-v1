@@ -17,7 +17,7 @@ export function AppNavigation() {
 
   const navItems = [
     {
-      name: 'Leads',
+      name: 'Listings',
       href: '/',
       icon: Users,
     },

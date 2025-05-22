@@ -226,6 +226,27 @@ export default function ContactsPage() {
         if (!listing.agent_name && !listing.agent_phone) return;
         uniqueAgentKeys.add(agentKey);
 
+        // Parse contact_logs to count interactions
+        let logs = [];
+        if (Array.isArray(listing.contact_logs)) logs = listing.contact_logs;
+        else if (typeof listing.contact_logs === 'string' && (listing.contact_logs + '').trim().length > 0) {
+          try { logs = JSON.parse(listing.contact_logs); } catch { logs = []; }
+        }
+        const interactionCount = logs.length;
+
+        // Determine status
+        let status = listing.agent_status || 'Not Contacted';
+        const lockedStatuses = ['Interested', 'Not Interested', 'Client', 'Bad Lead'];
+        if (interactionCount > 0 && status === 'Not Contacted') {
+          status = 'Contacted';
+          // Update in Supabase
+          supabase
+            .from('listings')
+            .update({ agent_status: 'Contacted' })
+            .eq('agent_name', listing.agent_name)
+            .eq('agent_phone', listing.agent_phone);
+        }
+
         if (agentMap.has(agentKey)) {
           const entry = agentMap.get(agentKey)!;
           if (listing.property_address && !entry.addresses.has(listing.property_address)) {
@@ -246,7 +267,7 @@ export default function ContactsPage() {
               avatar: listing.agent_name ? listing.agent_name[0].toUpperCase() : '?',
               favorite: false,
               agent_tags: listing.agent_tags || null,
-              agent_status: listing.agent_status || 'Not Contacted',
+              agent_status: lockedStatuses.includes(status) ? listing.agent_status : status,
               contact_logs: listing.contact_logs || [],
             },
             addresses: listing.property_address ? new Set([listing.property_address]) : new Set(),

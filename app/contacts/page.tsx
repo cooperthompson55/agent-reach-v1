@@ -88,6 +88,10 @@ export default function ContactsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const [bulkSmsModalOpen, setBulkSmsModalOpen] = useState(false);
+  const [bulkSmsContacts, setBulkSmsContacts] = useState<Contact[]>([]);
+  const [bulkSmsListings, setBulkSmsListings] = useState<any[]>([]);
+  const [bulkSmsAgentListingsMap, setBulkSmsAgentListingsMap] = useState<Record<string, any[]>>({});
 
   // Filter contacts by search term
   const filteredContacts = React.useMemo(() => {
@@ -430,6 +434,32 @@ export default function ContactsPage() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* Bulk SMS */}
+            <Button size="sm" variant="outline" onClick={async () => {
+              const selected = contacts.filter(c => selectedContacts.includes(c.id));
+              setBulkSmsContacts(selected);
+              // Fetch all listings for selected contacts
+              let allListings: any[] = [];
+              let agentListingsMap: Record<string, any[]> = {};
+              for (const contact of selected) {
+                const { data } = await supabase
+                  .from('listings')
+                  .select('id, property_address, property_city, agent_name, agent_phone')
+                  .eq('agent_name', contact.name)
+                  .eq('agent_phone', contact.phone);
+                if (data) {
+                  allListings = allListings.concat(data);
+                  agentListingsMap[`${contact.name}|${contact.phone}`] = data;
+                }
+              }
+              // Deduplicate listings by id
+              const dedupedListings = Array.from(new Map(allListings.map(l => [l.id, l])).values());
+              setBulkSmsListings(dedupedListings);
+              setBulkSmsAgentListingsMap(agentListingsMap);
+              setBulkSmsModalOpen(true);
+            }}>
+              SMS
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => setSelectedContacts([])}>Clear</Button>
           </div>
         )}
@@ -700,6 +730,17 @@ export default function ContactsPage() {
           propertyAddress={''}
           town={''}
           listings={emailListings}
+        />
+      )}
+      {bulkSmsModalOpen && (
+        <SmsTemplateModal
+          isOpen={bulkSmsModalOpen}
+          onClose={() => setBulkSmsModalOpen(false)}
+          agentName={''}
+          agentPhone={''}
+          contacts={bulkSmsContacts}
+          listings={bulkSmsListings}
+          agentListingsMap={bulkSmsAgentListingsMap}
         />
       )}
     </div>

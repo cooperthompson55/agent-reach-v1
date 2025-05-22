@@ -47,7 +47,9 @@ interface SmsTemplateModalProps {
   onClose: () => void;
   agentName: string;
   agentPhone: string;
-  listings?: { id: string; property_address: string; property_city: string }[];
+  listings?: { id: string; property_address: string; property_city: string; agent_name?: string; agent_phone?: string }[];
+  contacts?: { name: string; phone?: string }[];
+  agentListingsMap?: Record<string, { id: string; property_address: string; property_city: string; agent_name?: string; agent_phone?: string }[]>;
 }
 
 export default function SmsTemplateModal({ 
@@ -56,26 +58,34 @@ export default function SmsTemplateModal({
   agentName, 
   agentPhone, 
   listings = [],
+  contacts = [],
+  agentListingsMap = {},
 }: SmsTemplateModalProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<SmsTemplate>(smsTemplates[0])
   const [smsBody, setSmsBody] = useState("")
-  const [toPhone, setToPhone] = useState(agentPhone || "") // Changed from toEmail
+  const [toPhone, setToPhone] = useState(agentPhone || "")
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [selectedListingId, setSelectedListingId] = useState<string>(listings[0]?.id || '');
   const selectedListing = listings.find(l => l.id === selectedListingId) || listings[0] || null;
+  const [selectedListingIds, setSelectedListingIds] = useState<string[]>(listings.map(l => l.id));
 
   useEffect(() => {
-    setToPhone(agentPhone || "")
-  }, [agentPhone])
+    setToPhone(agentPhone || "");
+    if (isOpen) {
+      setSelectedListingIds(listings.map(l => l.id));
+    }
+    // eslint-disable-next-line
+  }, [isOpen]);
 
-  const replaceVariables = (text: string) => {
+  const replaceVariables = (text: string, name?: string, phone?: string, listing?: { property_address: string; property_city: string; id: string }) => {
     const variables: Record<string, string> = {
-      FirstName: agentName?.split(" ")[0] || "",
-      AgentName: agentName || "",
-      AgentPhone: agentPhone || "",
-      PropertyAddress: selectedListing?.property_address || "",
-      Town: selectedListing?.property_city || "the area",
+      FirstName: name?.split(" ")[0] || agentName?.split(" ")[0] || "",
+      AgentName: name || agentName || "",
+      AgentPhone: phone || agentPhone || "",
+      PropertyAddress: listing?.property_address || selectedListing?.property_address || "",
+      Town: listing?.property_city || selectedListing?.property_city || "the area",
       Time: "2:00 PM",
     };
     return text.replace(/\{([^}]+)\}/g, (match, key) => {
@@ -85,22 +95,73 @@ export default function SmsTemplateModal({
 
   const applyTemplate = (template: SmsTemplate) => {
     setSelectedTemplate(template)
-    setSmsBody(replaceVariables(template.body))
+    setSmsBody(template.body)
   }
 
   useEffect(() => {
     if (smsTemplates.length > 0) {
       applyTemplate(smsTemplates[0])
     }
-  }, [agentName, agentPhone, selectedListing]) // Re-apply when props change
+  }, [agentName, agentPhone, selectedListing, contacts, listings])
 
   const handleSendSms = async () => {
+    setIsSending(true)
+    setError(null)
+    setSuccess(null)
+    if (contacts && contacts.length > 0) {
+      // Bulk mode
+      let results: string[] = [];
+      for (const contact of contacts) {
+        if (!contact.phone) {
+          results.push(`${contact.name}: No phone number`);
+          continue;
+        }
+        // Only send listings that belong to this contact and are selected
+        const agentKey = `${contact.name}|${contact.phone}`;
+        const agentListings = (agentListingsMap[agentKey] || []).filter(l => selectedListingIds.includes(l.id));
+        if (agentListings.length === 0) {
+          results.push(`${contact.name}: No listings selected`);
+          continue;
+        }
+        for (const listing of agentListings) {
+          const finalBody = replaceVariables(smsBody, contact.name, contact.phone, listing);
+          try {
+            const response = await fetch('/api/send-sms', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ to: contact.phone, body: finalBody }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed');
+            // Log and update status
+            const logEntry = {
+              type: 'sms',
+              message: finalBody,
+              timestamp: new Date().toISOString(),
+              property_id: listing.id || null,
+              property_address: listing.property_address || null,
+              sent_by: 'Cooper',
+              to: contact.phone,
+            };
+            await fetch('/api/update-agent-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agentPhone: contact.phone, agentName: contact.name, status: 'Contacted', logEntry, property_id: listing.id })
+            });
+            results.push(`${contact.name} (${listing.property_address}): Sent`);
+          } catch (err) {
+            results.push(`${contact.name} (${listing.property_address}): Failed`);
+          }
+        }
+      }
+      setSuccess(results.join('\n'));
+      setIsSending(false);
+      setTimeout(() => { setSuccess(null); onClose(); }, 2000);
+      return;
+    }
+    // Single mode
     try {
-      setIsSending(true)
-      setError(null)
-
       const finalBody = replaceVariables(smsBody)
-
       const response = await fetch('/api/send-sms', {
         method: 'POST',
         headers: {
@@ -111,14 +172,10 @@ export default function SmsTemplateModal({
           body: finalBody,
         }),
       })
-
       const data = await response.json()
-
       if (!response.ok) {
         throw new Error(data.error || 'Failed to send SMS')
       }
-
-      alert('SMS sent successfully!')
       // Update agent_status to 'Contacted' in Supabase and log the SMS
       const logEntry = {
         type: 'sms',
@@ -134,7 +191,8 @@ export default function SmsTemplateModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agentPhone: agentPhone, agentName: agentName, status: 'Contacted', logEntry })
       })
-      onClose()
+      setSuccess('SMS sent successfully!');
+      setTimeout(() => { setSuccess(null); onClose(); }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send SMS')
     } finally {
@@ -146,10 +204,10 @@ export default function SmsTemplateModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto"> {/* Adjusted width slightly */}
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" /> {/* SMS Icon */}
+            <MessageSquare className="h-5 w-5" />
             <span className="text-xl">Create SMS</span>
           </DialogTitle>
           <Button variant="ghost" size="icon" className="absolute right-4 top-4" onClick={onClose}>
@@ -157,26 +215,64 @@ export default function SmsTemplateModal({
             <span className="sr-only">Close</span>
           </Button>
         </DialogHeader>
-
         <div className="space-y-4 py-2">
           {error && (
             <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
               {error}
             </div>
           )}
-
-          <div>
-            <label htmlFor="toPhone" className="block text-sm font-medium mb-1"> {/* Changed htmlFor to toPhone */}
-              To
-            </label>
-            <Input 
-              id="toPhone" 
-              value={toPhone} 
-              onChange={(e) => setToPhone(e.target.value)}
-              placeholder="Enter recipient phone number" // Changed placeholder
-            />
-          </div>
-
+          {success && (
+            <div className="bg-green-50 text-green-700 p-3 rounded-md text-sm whitespace-pre-line">
+              {success}
+            </div>
+          )}
+          {contacts && contacts.length > 0 ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">Recipients</label>
+                <div className="max-h-24 overflow-y-auto border rounded p-2 bg-gray-50 dark:bg-zinc-800 text-xs">
+                  {contacts.map((c, i) => (
+                    <div key={i}>{c.name} {c.phone ? `(${c.phone})` : '(No phone)'}</div>
+                  ))}
+                </div>
+              </div>
+              <div className="mb-2">
+                <label className="block text-sm font-medium mb-1">Listings to include</label>
+                <div className="max-h-32 overflow-y-auto border rounded p-2 bg-gray-50 dark:bg-zinc-800 text-xs flex flex-col gap-1">
+                  {listings.map(listing => (
+                    <label key={listing.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedListingIds.includes(listing.id)}
+                        onChange={e => {
+                          setSelectedListingIds(ids =>
+                            e.target.checked
+                              ? [...ids, listing.id]
+                              : ids.filter(id => id !== listing.id)
+                          );
+                        }}
+                        className="accent-blue-500"
+                      />
+                      <span>{listing.property_address}, {listing.property_city}</span>
+                    </label>
+                  ))}
+                  {listings.length === 0 && <span className="text-gray-400">No listings available</span>}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div>
+              <label htmlFor="toPhone" className="block text-sm font-medium mb-1">
+                To
+              </label>
+              <Input 
+                id="toPhone" 
+                value={toPhone} 
+                onChange={(e) => setToPhone(e.target.value)}
+                placeholder="Enter recipient phone number"
+              />
+            </div>
+          )}
           <div className="mb-4">
             {listings.length > 0 && (
               <div className="mb-2">
@@ -195,7 +291,6 @@ export default function SmsTemplateModal({
               </div>
             )}
           </div>
-
           <div>
             <label className="block text-sm font-medium mb-2">Templates</label>
             <div className="flex flex-wrap gap-2">
@@ -211,30 +306,28 @@ export default function SmsTemplateModal({
               ))}
             </div>
           </div>
-
           <div>
             <label htmlFor="message" className="block text-sm font-medium mb-1">
               Message
             </label>
             <Textarea
               id="message"
-              placeholder="Enter SMS message" // Changed placeholder
+              placeholder="Enter SMS message"
               value={smsBody}
               onChange={(e) => setSmsBody(e.target.value)}
-              className="min-h-[150px]" // Adjusted height
+              className="min-h-[150px]"
             />
           </div>
-
           <div className="flex justify-end pt-2">
             <Button 
               onClick={handleSendSms} 
-              disabled={isSending || !toPhone || !smsBody} // Basic validation
+              disabled={isSending || (contacts && contacts.length > 0 ? false : (!toPhone || !smsBody))}
             >
-              {isSending ? 'Sending...' : 'Send SMS'}
+              {isSending ? 'Sending...' : contacts && contacts.length > 0 ? 'Send Bulk SMS' : 'Send SMS'}
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 } 

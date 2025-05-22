@@ -6,7 +6,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: Request) {
-  const { agentEmail, agentPhone, agentName, status, logEntry } = await request.json()
+  const { agentEmail, agentPhone, agentName, status, logEntry, property_id } = await request.json()
   if (!agentName || !status || (!agentEmail && !agentPhone)) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
@@ -17,6 +17,9 @@ export async function POST(request: Request) {
   if (agentPhone) {
     query = query.eq('agent_phone', agentPhone)
   }
+  if (property_id) {
+    query = query.eq('id', property_id)
+  }
   // If logEntry is provided, fetch current logs, append, and update
   if (logEntry) {
     // Get the first matching row
@@ -25,6 +28,7 @@ export async function POST(request: Request) {
       .select('contact_logs')
       .eq('agent_name', agentName)
       .eq(agentEmail ? 'agent_email' : 'agent_phone', agentEmail || agentPhone)
+      .eq('id', property_id || undefined)
       .limit(1)
       .single()
     if (fetchError) {
@@ -45,6 +49,7 @@ export async function POST(request: Request) {
       .update({ agent_status: status, contact_logs: logs })
       .eq('agent_name', agentName)
       .eq(agentEmail ? 'agent_email' : 'agent_phone', agentEmail || agentPhone)
+      .eq('id', property_id || undefined)
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }

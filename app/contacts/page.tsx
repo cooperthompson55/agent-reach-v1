@@ -335,23 +335,41 @@ export default function ContactsPage() {
         const data = await res.json();
         const messages = data.contacts || data.messages;
         if (!messages) return setNewMessagesCount(0);
-        // Get Twilio phone number from env (client-side safe)
         const TWILIO_PHONE = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || '';
+        // Load seen state from localStorage
+        let seenMap: Record<string, string> = {};
+        try {
+          const stored = localStorage.getItem('virtualPhoneReadConversations');
+          if (stored) seenMap = JSON.parse(stored);
+        } catch {}
         // Group messages by contact (other party)
         const contactMap = new Map();
-        messages.forEach((msg: any) => {
+        messages.forEach((msg: any, idx: number) => {
           const otherPhone = msg.from === TWILIO_PHONE ? msg.to : msg.from;
           if (!otherPhone || otherPhone === TWILIO_PHONE) return;
           if (!contactMap.has(otherPhone)) contactMap.set(otherPhone, []);
-          contactMap.get(otherPhone).push(msg);
+          contactMap.get(otherPhone).push({ ...msg, _idx: idx });
         });
         let count = 0;
-        contactMap.forEach((msgs: any[]) => {
-          // Sort by date
+        contactMap.forEach((msgs: any[], phone: string) => {
           msgs.sort((a, b) => new Date(a.dateSent).getTime() - new Date(b.dateSent).getTime());
           const lastMsg = msgs[msgs.length - 1];
-          // If last message is inbound (from contact to Twilio), count as new
-          if (lastMsg && lastMsg.direction && lastMsg.direction.startsWith('inbound')) {
+          // Use a stable message ID: sid if available, else timestamp string, else idx
+          let stableId: string;
+          if (lastMsg.sid) {
+            stableId = lastMsg.sid;
+          } else if (lastMsg.dateSent) {
+            stableId = new Date(lastMsg.dateSent).getTime().toString();
+          } else {
+            stableId = lastMsg._idx.toString();
+          }
+          // If last message is inbound and not marked as seen, count as new
+          if (
+            lastMsg &&
+            lastMsg.direction &&
+            lastMsg.direction.startsWith('inbound') &&
+            (!seenMap[phone] || seenMap[phone] !== stableId)
+          ) {
             count++;
           }
         });

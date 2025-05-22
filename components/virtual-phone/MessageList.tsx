@@ -1,10 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Contact } from './VirtualPhoneInterface'
+import { useState, useEffect, useRef } from 'react'
+import { Contact as BaseContact } from './VirtualPhoneInterface'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
 import { Search } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog'
+
+type Contact = BaseContact & {
+  lastMessageId?: string
+  lastMessageDirection?: string
+}
 
 interface MessageListProps {
   onSelectContact: (contact: Contact) => void
@@ -14,8 +20,23 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [contacts, setContacts] = useState<Contact[]>([])
   const [agents, setAgents] = useState<{ agent_name: string, agent_phone: string }[]>([])
+  const [readConversations, setReadConversations] = useState<Record<string, string>>({})
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [pendingReadContact, setPendingReadContact] = useState<Contact | null>(null)
+  const longPressTimeout = useRef<NodeJS.Timeout | null>(null)
 
   const TWILIO_PHONE = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || ''
+
+  // Load read conversations from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('virtualPhoneReadConversations')
+    if (stored) setReadConversations(JSON.parse(stored))
+  }, [])
+
+  // Save read conversations to localStorage
+  useEffect(() => {
+    localStorage.setItem('virtualPhoneReadConversations', JSON.stringify(readConversations))
+  }, [readConversations])
 
   useEffect(() => {
     const fetchAgents = async () => {
@@ -47,6 +68,8 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
             lastMessage: msg.body,
             lastMessageTime: new Date(msg.dateSent).toLocaleString(),
             isReceived,
+            lastMessageId: msg.sid || msg.id || msg.dateSent, // Use sid if available, fallback to id or dateSent
+            lastMessageDirection: msg.direction,
           }
         }).filter(Boolean)
         setContacts(mapped)
@@ -60,8 +83,68 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
     contact.phone.includes(searchTerm)
   )
 
+  // Handler for click/shift-click/long-press
+  const handleContactClick = (contact: Contact, event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      setPendingReadContact(contact)
+      setDialogOpen(true)
+    } else {
+      onSelectContact(contact)
+    }
+  }
+
+  // Mobile: handle long press
+  const handleTouchStart = (contact: Contact) => {
+    longPressTimeout.current = setTimeout(() => {
+      setPendingReadContact(contact)
+      setDialogOpen(true)
+    }, 500)
+  }
+  const handleTouchEnd = () => {
+    if (longPressTimeout.current) {
+      clearTimeout(longPressTimeout.current)
+      longPressTimeout.current = null
+    }
+  }
+
+  // Helper to mark as read and persist immediately
+  const markAsRead = (contact: Contact) => {
+    if (!contact.isReceived) return
+    setReadConversations(prev => {
+      const updated = { ...prev, [contact.phone]: contact.lastMessageId }
+      localStorage.setItem('virtualPhoneReadConversations', JSON.stringify(updated))
+      return updated
+    })
+  }
+
+  const confirmMarkAsRead = () => {
+    if (pendingReadContact) {
+      markAsRead(pendingReadContact)
+    }
+    setDialogOpen(false)
+    setPendingReadContact(null)
+  }
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-zinc-900">
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark as Seen?</DialogTitle>
+          </DialogHeader>
+          <div>Are you sure you want to mark this conversation as seen? It will remove the blue dot until a new message is received.</div>
+          <DialogFooter>
+            <button
+              className="px-4 py-2 rounded bg-gray-200 dark:bg-zinc-700 hover:bg-gray-300 dark:hover:bg-zinc-600"
+              onClick={() => setDialogOpen(false)}
+            >Cancel</button>
+            <button
+              className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+              onClick={confirmMarkAsRead}
+            >Mark as Seen</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="p-3 border-b dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400 dark:text-zinc-400" />
@@ -79,7 +162,10 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
           <div 
             key={contact.id}
             className="border-b dark:border-zinc-800 p-4 hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
-            onClick={() => onSelectContact(contact)}
+            onClick={(e) => handleContactClick(contact, e)}
+            onTouchStart={() => handleTouchStart(contact)}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
           >
             <div className="flex items-center space-x-3">
               <div className="relative">
@@ -91,7 +177,9 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
                 {contact.isOnline && (
                   <span className="absolute bottom-0 right-0 rounded-full h-3 w-3 bg-green-500 ring-2 ring-white dark:ring-zinc-900"></span>
                 )}
-                {contact.isReceived && (
+                {/* Show blue dot only if isReceived and not marked as read for this message */}
+                {contact.isReceived &&
+                  (!readConversations[contact.phone] || readConversations[contact.phone] !== contact.lastMessageId) && (
                   <span className="absolute top-0 right-0 rounded-full h-3 w-3 bg-blue-500 ring-2 ring-white dark:ring-zinc-900"></span>
                 )}
               </div>

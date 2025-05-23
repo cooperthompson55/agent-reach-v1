@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Contact, Message } from './VirtualPhoneInterface'
 import { Avatar } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
@@ -15,40 +15,78 @@ interface ConversationViewProps {
 export default function ConversationView({ contact, onBack }: ConversationViewProps) {
   const [messageText, setMessageText] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [agents, setAgents] = useState<{ agent_name: string, agent_phone: string }[]>([])
 
-  // Fetch messages from backend
-  const fetchMessages = async () => {
+  // Helper to map API messages to Message type
+  const mapMessages = (msgs: any[]): Message[] =>
+    msgs.map((msg: any) => ({
+      id: msg.sid,
+      content: msg.body,
+      timestamp: new Date(msg.dateSent).toLocaleString(),
+      isIncoming: msg.direction.startsWith('inbound'),
+      status: msg.status,
+    }))
+
+  // Initial fetch (latest messages)
+  const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch(`/api/messages?contact=${encodeURIComponent(contact.phone)}`)
+      const res = await fetch(`/api/messages?contact=${encodeURIComponent(contact.phone)}&limit=30`)
       const data = await res.json()
       if (data.messages) {
-        // Map Twilio messages to Message type
-        const mapped: Message[] = data.messages.map((msg: any) => ({
-          id: msg.sid,
-          content: msg.body,
-          timestamp: new Date(msg.dateSent).toLocaleString(),
-          isIncoming: msg.direction.startsWith('inbound'),
-          status: msg.status,
-        }))
-        setMessages(mapped)
+        setMessages(mapMessages(data.messages))
+        setHasMore(data.hasMore)
+        setNextCursor(data.nextCursor)
       }
-    } catch (e) {
-      // Optionally handle error
-    }
-  }
-
-  useEffect(() => {
-    fetchMessages()
-    const interval = setInterval(fetchMessages, 10000) // Poll every 10s
-    return () => clearInterval(interval)
+    } catch (e) {}
   }, [contact.phone])
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  // Fetch older messages (pagination)
+  const fetchOlderMessages = async () => {
+    if (!hasMore || loadingMore || !nextCursor) return
+    setLoadingMore(true)
+    try {
+      const res = await fetch(`/api/messages?contact=${encodeURIComponent(contact.phone)}&limit=30&before=${encodeURIComponent(nextCursor)}`)
+      const data = await res.json()
+      if (data.messages && data.messages.length > 0) {
+        setMessages(prev => [...mapMessages(data.messages), ...prev])
+        setHasMore(data.hasMore)
+        setNextCursor(data.nextCursor)
+      } else {
+        setHasMore(false)
+      }
+    } catch (e) {
+      setHasMore(false)
+    }
+    setLoadingMore(false)
+  }
 
+  // On mount or contact change, load latest messages
+  useEffect(() => {
+    setMessages([])
+    setHasMore(true)
+    setNextCursor(null)
+    fetchMessages()
+  }, [fetchMessages])
+
+  // Poll for new messages every 10s
+  useEffect(() => {
+    const interval = setInterval(fetchMessages, 10000)
+    return () => clearInterval(interval)
+  }, [fetchMessages])
+
+  // Scroll to bottom on new messages (if not loading more)
+  useEffect(() => {
+    if (!loadingMore) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages, loadingMore])
+
+  // Fetch agents for display name
   useEffect(() => {
     const fetchAgents = async () => {
       const res = await fetch('/api/contacts')
@@ -57,6 +95,15 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
     }
     fetchAgents()
   }, [])
+
+  // Infinite scroll: load more when scrolled to top
+  const handleScroll = () => {
+    const container = messagesContainerRef.current
+    if (!container || loadingMore || !hasMore) return
+    if (container.scrollTop < 50) {
+      fetchOlderMessages()
+    }
+  }
 
   const handleSendMessage = async () => {
     if (messageText.trim() === '') return
@@ -80,7 +127,7 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
 
   // Find agent name for this conversation
   const agent = agents.find(a => a.agent_phone === contact.phone)
-  const displayName = agent ? agent.agent_name : contact.phone
+  const displayName = contact.name || (agent ? agent.agent_name : contact.phone)
 
   return (
     <div className="flex flex-col h-full w-full bg-white dark:bg-zinc-900">
@@ -107,7 +154,15 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-zinc-900">
+      <div
+        className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-zinc-900"
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        style={{ display: 'flex', flexDirection: 'column' }}
+      >
+        {loadingMore && (
+          <div className="flex justify-center py-2 text-xs text-gray-500 dark:text-zinc-400">Loading more...</div>
+        )}
         {(messages.length > 1000 ? messages.slice(-1000) : messages).map((message) => (
           <div 
             key={message.id} 

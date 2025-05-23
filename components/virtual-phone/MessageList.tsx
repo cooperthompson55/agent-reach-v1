@@ -43,7 +43,17 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
     const fetchAgents = async () => {
       const res = await fetch('/api/contacts')
       const data = await res.json()
-      if (data.contacts) setAgents(data.contacts)
+      if (data.contacts) {
+        // Deduplicate by agent_phone, prefer non-empty agent_name
+        const uniqueAgents: { [phone: string]: string } = {}
+        data.contacts.forEach((a: any) => {
+          const phone = (a.agent_phone || '').replace(/\D/g, '') // normalize to digits only
+          if (phone && (!uniqueAgents[phone] || (a.agent_name && a.agent_name.trim()))) {
+            uniqueAgents[phone] = a.agent_name?.trim() || phone
+          }
+        })
+        setAgents(Object.entries(uniqueAgents).map(([agent_phone, agent_name]) => ({ agent_phone, agent_name })))
+      }
     }
     fetchAgents()
   }, [])
@@ -57,9 +67,10 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
         // Map Twilio message to Contact type, using agent name if available
         const mapped: Contact[] = messages.map((msg: any, idx: number) => {
           // Determine the other party (not your own Twilio number)
-          const otherPhone = msg.from === TWILIO_PHONE ? msg.to : msg.from
-          if (otherPhone === TWILIO_PHONE) return null // skip self
-          const agent = agents.find(a => a.agent_phone === otherPhone)
+          const otherPhoneRaw = msg.from === TWILIO_PHONE ? msg.to : msg.from
+          const otherPhone = (otherPhoneRaw || '').replace(/\D/g, '') // normalize
+          if (otherPhone === TWILIO_PHONE.replace(/\D/g, '')) return null // skip self
+          const agent = agents.find(a => (a.agent_phone || '').replace(/\D/g, '') === otherPhone)
           // Determine if the last message was received (inbound)
           const isReceived = msg.direction && msg.direction.startsWith('inbound');
           // Use a stable message ID: sid if available, else timestamp string, else idx
@@ -73,8 +84,8 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
           }
           return {
             id: otherPhone + idx,
-            name: agent ? agent.agent_name : otherPhone,
-            phone: otherPhone,
+            name: agent ? agent.agent_name : otherPhoneRaw,
+            phone: otherPhoneRaw,
             lastMessage: msg.body,
             lastMessageTime: new Date(msg.dateSent).toLocaleString(),
             isReceived,
@@ -226,15 +237,6 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
             </div>
           </div>
         ))}
-      </div>
-      
-      <div className="p-4 border-t dark:border-zinc-800 flex justify-between bg-white dark:bg-zinc-900">
-        <button className="flex items-center justify-center w-full py-2 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-md text-sm font-medium text-gray-900 dark:text-zinc-100">
-          Messages
-        </button>
-        <button className="flex items-center justify-center w-full py-2 rounded-md text-sm font-medium text-gray-900 dark:text-zinc-100">
-          Contacts
-        </button>
       </div>
     </div>
   )

@@ -219,25 +219,36 @@ export default function ContactsPage() {
     }
 
     if (listingsData) {
+      // Map agentKey to all their listings
+      const agentListingsMap = new Map();
+      listingsData.forEach((listing: any) => {
+        const agentKey = `${listing.agent_name || ''}|${listing.agent_phone || ''}`;
+        if (!listing.agent_name && !listing.agent_phone) return;
+        if (!agentListingsMap.has(agentKey)) agentListingsMap.set(agentKey, []);
+        agentListingsMap.get(agentKey).push(listing);
+      });
+
       const agentMap = new Map<string, { contact: Contact, addresses: Set<string> }>();
       const newListingMap = new Map<string, boolean>();
       const uniqueAgentKeys = new Set();
 
-      listingsData.forEach((listing) => {
-        const agentKey = `${listing.agent_name || ''}|${listing.agent_phone || ''}`;
-        if (!listing.agent_name && !listing.agent_phone) return;
+      agentListingsMap.forEach((listings: any[], agentKey: string) => {
+        const firstListing = listings[0];
         uniqueAgentKeys.add(agentKey);
-
-        // Parse contact_logs to count interactions
+        // Aggregate all tags for this agent
+        const allTags = new Set<string>();
+        listings.forEach((l: any) => {
+          if (l.agent_tags) (l.agent_tags as string).split(',').forEach((t: string) => t && allTags.add(t));
+        });
+        // Parse contact_logs to count interactions (from first listing)
         let logs = [];
-        if (Array.isArray(listing.contact_logs)) logs = listing.contact_logs;
-        else if (typeof listing.contact_logs === 'string' && (listing.contact_logs + '').trim().length > 0) {
-          try { logs = JSON.parse(listing.contact_logs); } catch { logs = []; }
+        if (Array.isArray(firstListing.contact_logs)) logs = firstListing.contact_logs;
+        else if (typeof firstListing.contact_logs === 'string' && (firstListing.contact_logs + '').trim().length > 0) {
+          try { logs = JSON.parse(firstListing.contact_logs); } catch { logs = []; }
         }
         const interactionCount = logs.length;
-
         // Determine status
-        let status = listing.agent_status || 'Not Contacted';
+        let status = firstListing.agent_status || 'Not Contacted';
         const lockedStatuses = ['Interested', 'Not Interested', 'Client', 'Bad Lead'];
         if (interactionCount > 0 && status === 'Not Contacted') {
           status = 'Contacted';
@@ -245,73 +256,41 @@ export default function ContactsPage() {
           supabase
             .from('listings')
             .update({ agent_status: 'Contacted' })
-            .eq('agent_name', listing.agent_name)
-            .eq('agent_phone', listing.agent_phone);
+            .eq('agent_name', firstListing.agent_name)
+            .eq('agent_phone', firstListing.agent_phone);
         }
-
-        // Check if this listing is less than 1 day old
-        let isNew = false;
-        if (listing.created_at) {
-          const createdAt = new Date(listing.created_at);
+        // Check if any listing is less than 1 day old
+        let isNew = listings.some((l: any) => {
+          if (!l.created_at) return false;
+          const createdAt = new Date(l.created_at);
           const now = new Date();
-          const diffMs = now.getTime() - createdAt.getTime();
-          if (diffMs < 24 * 60 * 60 * 1000) {
-            isNew = true;
-          }
-        }
+          return (now.getTime() - createdAt.getTime()) < 24 * 60 * 60 * 1000;
+        });
         if (isNew) newListingMap.set(agentKey, true);
-
-        if (agentMap.has(agentKey)) {
-          const entry = agentMap.get(agentKey)!;
-          if (listing.property_address && !entry.addresses.has(listing.property_address)) {
-            entry.addresses.add(listing.property_address);
-            entry.contact.listings += 1;
-          }
-        } else {
-          agentMap.set(agentKey, {
-            contact: {
-              id: agentKey,
-              name: listing.agent_name || 'N/A',
-              email: listing.agent_email || '',
-              phone: listing.agent_phone,
-              brokerage: listing.brokerage_name,
-              instagram: listing.instagram_account,
-              listings: listing.property_address ? 1 : 0,
-              lastContact: 'N/A',
-              avatar: listing.agent_name ? listing.agent_name[0].toUpperCase() : '?',
-              favorite: false,
-              agent_tags: listing.agent_tags || null,
-              agent_status: lockedStatuses.includes(status) ? listing.agent_status : status,
-              contact_logs: listing.contact_logs || [],
-            },
-            addresses: listing.property_address ? new Set([listing.property_address]) : new Set(),
-          });
-        }
+        // Count unique addresses
+        const addresses = new Set((listings.map((l: any) => l.property_address).filter(Boolean)) as string[]);
+        agentMap.set(agentKey, {
+          contact: {
+            id: agentKey,
+            name: firstListing.agent_name || 'N/A',
+            email: firstListing.agent_email || '',
+            phone: firstListing.agent_phone,
+            brokerage: firstListing.brokerage_name,
+            instagram: firstListing.instagram_account,
+            listings: addresses.size,
+            lastContact: 'N/A',
+            avatar: firstListing.agent_name ? firstListing.agent_name[0].toUpperCase() : '?',
+            favorite: false,
+            agent_tags: Array.from(allTags).join(',') || null,
+            agent_status: lockedStatuses.includes(status) ? firstListing.agent_status : status,
+            contact_logs: firstListing.contact_logs || [],
+          },
+          addresses,
+        });
       });
-      // After collecting all contacts, add 'New' tag if needed
+      // After collecting all contacts, aggregate tags only (do not add/remove 'New' here)
       const contactsArr = Array.from(agentMap.values()).map(entry => {
-        let tags = entry.contact.agent_tags ? entry.contact.agent_tags.split(',') : [];
-        const agentKey = `${entry.contact.name}|${entry.contact.phone || ''}`;
-        const hasNew = newListingMap.get(agentKey);
-        const hadNewTag = tags.includes('New');
-        if (hasNew && !hadNewTag) {
-          tags.push('New');
-          // Update in Supabase
-          supabase
-            .from('listings')
-            .update({ agent_tags: tags.join(',') })
-            .eq('agent_name', entry.contact.name)
-            .eq('agent_phone', entry.contact.phone);
-        } else if (!hasNew && hadNewTag) {
-          tags = tags.filter(t => t !== 'New');
-          // Update in Supabase
-          supabase
-            .from('listings')
-            .update({ agent_tags: tags.length ? tags.join(',') : null })
-            .eq('agent_name', entry.contact.name)
-            .eq('agent_phone', entry.contact.phone);
-        }
-        return { ...entry.contact, agent_tags: tags.join(',') };
+        return { ...entry.contact };
       });
       setContacts(contactsArr);
       setRefreshMessage('Contacts refreshed!');
@@ -394,16 +373,17 @@ export default function ContactsPage() {
     }
     // Map agents to their listings
     const agentMap = new Map();
-    allListings.forEach(listing => {
+    allListings.forEach((listing: any) => {
       if (!listing.agent_name && !listing.agent_phone) return;
       const key = `${listing.agent_name || ''}|${listing.agent_phone || ''}`;
-      if (!agentMap.has(key)) agentMap.set(key, { tags: listing.agent_tags || null, listings: [] });
+      if (!agentMap.has(key)) agentMap.set(key, { tags: new Set<string>(), listings: [] });
+      if (listing.agent_tags) (listing.agent_tags as string).split(',').forEach((t: string) => t && (agentMap.get(key).tags as Set<string>).add(t));
       agentMap.get(key).listings.push(listing);
     });
     // For each agent, check autotag filters and add tags if needed
     for (const [key, { tags, listings }] of agentMap.entries()) {
       const [agent_name, agent_phone] = key.split('|');
-      let tagArr = tags ? tags.split(',') : [];
+      let tagArr = Array.from(tags as Set<string>);
       // <10-Photos
       if (listings.some((l: any) => l.photo_count < 10) && !tagArr.includes('<10-Photos')) tagArr.push('<10-Photos');
       // High Value
@@ -417,19 +397,26 @@ export default function ContactsPage() {
       // Remove 'New Listing' tag if present
       tagArr = tagArr.filter((t: string) => t !== 'New Listing');
       // Update if changed
-      if (tagArr.join(',') !== (tags || '')) {
+      const newTagsStr = tagArr.join(',');
+      if (newTagsStr !== Array.from(tags as Set<string>).join(',')) {
         await supabase
           .from('listings')
-          .update({ agent_tags: tagArr.join(',') })
+          .update({ agent_tags: newTagsStr })
           .eq('agent_name', agent_name)
           .eq('agent_phone', agent_phone);
         setContacts(prevContacts => prevContacts.map(c =>
           c.name === agent_name && c.phone === agent_phone
-            ? { ...c, agent_tags: tagArr.join(',') }
+            ? { ...c, agent_tags: newTagsStr }
             : c
         ));
       }
     }
+  };
+
+  // Add a helper function to open the contact modal with a specific tab
+  const openContactModal = (contact: Contact, tab: string) => {
+    setContactDetailsTab(tab);
+    setSelectedContact(contact);
   };
 
   return (
@@ -680,7 +667,7 @@ export default function ContactsPage() {
                     className="accent-blue-500 w-4 h-4 rounded"
                   />
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap flex items-center gap-3" onClick={() => { setSelectedContact(contact); setContactDetailsTab('Overview'); }}>
+                <td className="px-6 py-4 whitespace-nowrap flex items-center gap-3" onClick={() => openContactModal(contact, 'Overview')}>
                   {/* Avatar */}
                   <div className="h-9 w-9 rounded-full bg-gray-200 dark:bg-zinc-800 flex items-center justify-center text-lg font-bold">
                     {contact.name[0]}
@@ -693,11 +680,11 @@ export default function ContactsPage() {
                     <div className="text-xs text-gray-500 dark:text-zinc-400">{contact.email}</div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-zinc-100" onClick={() => { setSelectedContact(contact); setContactDetailsTab('Overview'); }}>{contact.brokerage}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-center cursor-pointer" onClick={() => { setSelectedContact(contact); setContactDetailsTab('Listings'); }}>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-zinc-100" onClick={() => openContactModal(contact, 'Overview')}>{contact.brokerage}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center cursor-pointer" onClick={() => openContactModal(contact, 'Listings')}>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-black dark:bg-zinc-200 text-white dark:text-zinc-900">{contact.listings}</span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-center cursor-pointer" onClick={() => { setSelectedContact(contact); setContactDetailsTab('Interactions'); }}>
+                <td className="px-6 py-4 whitespace-nowrap text-center cursor-pointer" onClick={() => openContactModal(contact, 'Interactions')}>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-black dark:bg-zinc-200 text-white dark:text-zinc-900">{
                     (() => {
                       let logs = [];
@@ -834,7 +821,7 @@ export default function ContactsPage() {
                       <Button variant="ghost" size="icon"><MoreHorizontal className="h-5 w-5" /></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setSelectedContact(contact)}>
+                      <DropdownMenuItem onClick={() => openContactModal(contact, 'Overview')}>
                         <Eye className="h-4 w-4 mr-2" /> View Details
                       </DropdownMenuItem>
                       <DropdownMenuItem>

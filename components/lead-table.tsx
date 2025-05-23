@@ -57,7 +57,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { format, formatDistanceToNow } from "date-fns"
 import { supabase } from "@/lib/supabase"
-import type { Listing } from "@/types/listing"
+import type { Listing as BaseListing } from "@/types/listing"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,25 +100,9 @@ const statusColors: Record<string, string> = {
   "Converted": "bg-emerald-500/10 text-emerald-500 dark:bg-emerald-800/40 dark:text-emerald-200",
 }
 
-// Update the Lead type to match the database schema
-interface Lead {
-  id: string
-  agent_name: string
-  agent_email: string | null
-  agent_phone: string | null
-  property_address: string
-  property_city: string
-  property_postal: string
-  property_price: string
-  photo_count: number
-  listing_url: string
-  listing_date: string
-  brokerage_name: string
-  listing_source: string
-  notes: string | null
-  instagram_account: string | null
-  created_at: string
-  updated_at: string
+// Update the Listing type to ensure agent_tags is present for linter
+interface Listing extends BaseListing {
+  agent_tags?: string;
 }
 
 interface ExtractedInfo {
@@ -210,6 +194,30 @@ export default function LeadTable() {
         throw error
       }
 
+      // Add/remove 'New' tag based on listing age
+      if (data) {
+        const now = new Date();
+        await Promise.all(data.map(async (lead: any) => {
+          const createdAt = new Date(lead.listing_date);
+          const isNew = (now.getTime() - createdAt.getTime()) < 24 * 60 * 60 * 1000;
+          let tags = (lead.agent_tags || '').split(',').map((t: string) => t.trim()).filter(Boolean);
+          const hasNew = tags.includes('New');
+          if (isNew && !hasNew) {
+            tags.push('New');
+            await supabase
+              .from('listings')
+              .update({ agent_tags: tags.join(',') })
+              .eq('id', lead.id);
+          } else if (!isNew && hasNew) {
+            tags = tags.filter((t: string) => t !== 'New');
+            await supabase
+              .from('listings')
+              .update({ agent_tags: tags.length ? tags.join(',') : null })
+              .eq('id', lead.id);
+          }
+        }));
+      }
+
       setLeads(data || [])
     } catch (error) {
       console.error('Error fetching leads:', error)
@@ -230,7 +238,7 @@ export default function LeadTable() {
 
     leads.forEach((lead) => {
       // Count tags
-      (lead.notes || "").split(/\s+/).forEach((word) => {
+      (lead.agent_tags || "").split(/\s+/).forEach((word: string) => {
         newTagCounts[word] = (newTagCounts[word] || 0) + 1
       })
 
@@ -268,17 +276,15 @@ export default function LeadTable() {
       const lead = leads.find(l => l.id === leadId)
       if (!lead) return
 
-      const currentNotes = lead.notes || ''
-      const tags = currentNotes.split(/\s+/).filter(Boolean)
-      
-      // Remove the tag if it exists, otherwise add it
-      const newTags = tags.includes(tagName)
-        ? tags.filter(tag => tag !== tagName)
-        : [...tags, tagName]
+      // Use agent_tags instead of notes
+      const currentTags = (lead.agent_tags || '').split(',').map((t: string) => t.trim()).filter(Boolean)
+      const newTags = currentTags.includes(tagName)
+        ? currentTags.filter((tag: string) => tag !== tagName)
+        : [...currentTags, tagName]
 
       const { error } = await supabase
         .from('listings')
-        .update({ notes: newTags.join(' ') })
+        .update({ agent_tags: newTags.join(',') })
         .eq('id', leadId)
 
       if (error) throw error
@@ -449,7 +455,7 @@ export default function LeadTable() {
           lead.property_city.toLowerCase().includes(searchTerm.toLowerCase())
 
         const matchesStatus = !statusFilter || lead.listing_source === statusFilter
-        const matchesTag = !tagFilter || (lead.notes || "").includes(tagFilter)
+        const matchesTag = !tagFilter || (lead.agent_tags || "").includes(tagFilter)
 
         return matchesSearch && matchesStatus && matchesTag
     })
@@ -979,52 +985,30 @@ export default function LeadTable() {
                     </TableCell>
                       <TableCell>{formatDistanceToNow(new Date(lead.listing_date), { addSuffix: true })}</TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-1 items-center">
-                        {(lead.notes || "").split(/\s+/).slice(0, 2).map((tag) => {
-                          const tagConfig = availableTags.find(t => t.name === tag) || {
-                            color: "bg-gray-100 text-gray-800 dark:bg-gray-800/80 dark:text-gray-100 dark:border-gray-700",
-                            selectedColor: "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
-                          };
-                          return (
-                            <Badge
-                              key={tag}
-                              variant="outline"
-                              className={`${tagConfig.color} border text-xs group flex items-center gap-1 hover:bg-muted ${
-                                tagFilter === tag ? "ring-2 ring-primary ring-offset-2" : ""
-                              }`}
-                            >
-                              {tag}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  updateLeadTags(lead.id, tag);
-                                }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <X className="h-3 w-3" />
-                                <span className="sr-only">Remove tag</span>
-                              </button>
-                            </Badge>
-                          );
-                        })}
-                        {(lead.notes || "").split(/\s+/).length > 2 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{(lead.notes || "").split(/\s+/).length - 2}
-                          </Badge>
-                        )}
+                      <div className="flex items-start gap-2 max-w-[200px] min-h-[32px]">
+                        <div className="flex flex-col gap-1">
+                          {(lead.agent_tags || "")
+                            .split(',')
+                            .map((tag: string) => tag.trim())
+                            .filter(Boolean)
+                            .map((tag: string) => (
+                              <span key={tag} className={`px-2 py-0.5 rounded-full text-xs font-medium ${availableTags.find(t => t.name === tag)?.color || 'bg-gray-300 text-black'}`}>{tag}</span>
+                            ))}
+                          {!(lead.agent_tags || '').trim() && <span className="text-xs text-gray-400">No tag</span>}
+                        </div>
                         <Popover>
                           <PopoverTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
+                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full ml-1">
                               <Plus className="h-3 w-3" />
-                              <span className="sr-only">Add tag</span>
+                              <span className="sr-only">Add or edit tags</span>
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-56 p-2" align="start">
                             <div className="space-y-1">
-                              <p className="text-sm font-medium">Add Tags</p>
+                              <p className="text-sm font-medium">Add/Remove Tags</p>
                               <div className="grid grid-cols-2 gap-1">
                                 {availableTags.map((tag) => {
-                                  const isSelected = (lead.notes || "").includes(tag.name);
+                                  const isSelected = (lead.agent_tags || "").split(',').map((t: string) => t.trim()).includes(tag.name);
                                   return (
                                     <Button
                                       key={tag.id}

@@ -5,7 +5,7 @@ import { Contact, Message } from './VirtualPhoneInterface'
 import { Avatar } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Send, Paperclip, CheckCheck, Clock, ArrowLeft } from 'lucide-react'
+import { Send, Paperclip, CheckCheck, Clock, ArrowLeft, Loader2 } from 'lucide-react'
 
 interface ConversationViewProps {
   contact: Contact
@@ -15,16 +15,23 @@ interface ConversationViewProps {
 export default function ConversationView({ contact, onBack }: ConversationViewProps) {
   const [messageText, setMessageText] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [agents, setAgents] = useState<{ agent_name: string, agent_phone: string }[]>([])
 
-  // Fetch messages from backend
-  const fetchMessages = async () => {
+  // Fetch messages from backend (batched)
+  const fetchMessages = async (before?: string, append = false) => {
     try {
-      const res = await fetch(`/api/messages?contact=${encodeURIComponent(contact.phone)}`)
+      const url = new URL(`/api/messages`, window.location.origin)
+      url.searchParams.set('contact', contact.phone)
+      url.searchParams.set('limit', '200')
+      if (before) url.searchParams.set('before', before)
+      const res = await fetch(url.toString())
       const data = await res.json()
       if (data.messages) {
-        // Map Twilio messages to Message type
         const mapped: Message[] = data.messages.map((msg: any) => ({
           id: msg.sid,
           content: msg.body,
@@ -32,22 +39,56 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
           isIncoming: msg.direction.startsWith('inbound'),
           status: msg.status,
         }))
-        setMessages(mapped)
+        if (append) {
+          setMessages(prev => [...mapped, ...prev])
+        } else {
+          setMessages(mapped)
+        }
+        setHasMore(mapped.length === 200)
+      } else {
+        setHasMore(false)
       }
     } catch (e) {
-      // Optionally handle error
+      setHasMore(false)
+    } finally {
+      setInitialLoading(false)
+      setLoadingMore(false)
     }
   }
 
+  // Initial load and polling
   useEffect(() => {
+    setMessages([])
+    setHasMore(true)
+    setInitialLoading(true)
     fetchMessages()
-    const interval = setInterval(fetchMessages, 10000) // Poll every 10s
+    const interval = setInterval(() => fetchMessages(), 10000)
     return () => clearInterval(interval)
   }, [contact.phone])
 
+  // Scroll to bottom on new messages (only if not loading more)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (!loadingMore && !initialLoading) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages, loadingMore, initialLoading])
+
+  // Infinite scroll: load more when scrolled to top
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const handleScroll = () => {
+      if (container.scrollTop < 100 && hasMore && !loadingMore && messages.length > 0) {
+        setLoadingMore(true)
+        // Use the oldest message's timestamp as 'before'
+        const oldest = messages[0]
+        // Use ISO string for before param
+        fetchMessages(new Date(oldest.timestamp).toISOString(), true)
+      }
+    }
+    container.addEventListener('scroll', handleScroll)
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [messages, hasMore, loadingMore])
 
   useEffect(() => {
     const fetchAgents = async () => {
@@ -107,7 +148,12 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-zinc-900">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-zinc-900">
+        {loadingMore && (
+          <div className="flex justify-center items-center py-2 text-gray-500">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading more messages...
+          </div>
+        )}
         {messages.map((message) => (
           <div 
             key={message.id} 

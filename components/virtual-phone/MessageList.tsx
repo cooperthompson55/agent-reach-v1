@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '
 type Contact = BaseContact & {
   lastMessageId?: string
   lastMessageDirection?: string
+  listings?: any[]
 }
 
 interface MessageListProps {
@@ -92,6 +93,14 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
     contact.phone.includes(searchTerm)
   )
 
+  // Sort so unread appear first
+  const sortedContacts = [...filteredContacts].sort((a, b) => {
+    const aUnread = a.isReceived && (!readConversations[a.phone] || readConversations[a.phone] !== a.lastMessageId)
+    const bUnread = b.isReceived && (!readConversations[b.phone] || readConversations[b.phone] !== b.lastMessageId)
+    if (aUnread === bUnread) return 0
+    return aUnread ? -1 : 1
+  })
+
   // Handler for click/shift-click/long-press
   const handleContactClick = (contact: Contact, event: React.MouseEvent) => {
     if (event.shiftKey) {
@@ -167,7 +176,7 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
       </div>
       
       <div className="overflow-y-auto flex-1 bg-white dark:bg-zinc-900">
-        {filteredContacts.map(contact => (
+        {sortedContacts.map(contact => (
           <div 
             key={contact.id}
             className="border-b dark:border-zinc-800 p-4 hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
@@ -195,7 +204,13 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
               
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between">
-                  <p className="text-sm font-medium text-gray-900 dark:text-zinc-100 truncate">{contact.name}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-zinc-100 truncate flex items-center gap-2">
+                    {contact.name}
+                    {/* High Value Tag */}
+                    {Array.isArray(contact.listings) && contact.listings.some((l: any) => l.price > 1500000) && (
+                      <span className="ml-2 px-2 py-0.5 rounded bg-yellow-400 text-xs font-semibold text-yellow-900">High Value</span>
+                    )}
+                  </p>
                   <p className="text-xs text-gray-500 dark:text-zinc-400">{contact.lastMessageTime}</p>
                 </div>
                 

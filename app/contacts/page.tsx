@@ -382,36 +382,47 @@ export default function ContactsPage() {
   }, []);
 
   const handleTagAll = async () => {
-    // 1. Fetch all listings with photo_count < 10
-    const { data: lowPhotoListings, error } = await supabase
+    // Fetch all listings
+    const { data: allListings, error } = await supabase
       .from('listings')
-      .select('agent_name, agent_phone, agent_tags')
-      .lt('photo_count', 10);
-    if (error) {
-      console.error('Error fetching low photo listings:', error);
+      .select('agent_name, agent_phone, agent_tags, photo_count, property_price, created_at');
+    if (error || !allListings) {
+      console.error('Error fetching listings:', JSON.stringify(error), 'Data:', allListings);
+      setRefreshMessage('Failed to tag all: could not fetch listings.');
+      setTimeout(() => setRefreshMessage(null), 3000);
       return;
     }
-    // 2. Find unique agents
+    // Map agents to their listings
     const agentMap = new Map();
-    lowPhotoListings.forEach(listing => {
+    allListings.forEach(listing => {
       if (!listing.agent_name && !listing.agent_phone) return;
       const key = `${listing.agent_name || ''}|${listing.agent_phone || ''}`;
-      if (!agentMap.has(key)) {
-        agentMap.set(key, listing.agent_tags || null);
-      }
+      if (!agentMap.has(key)) agentMap.set(key, { tags: listing.agent_tags || null, listings: [] });
+      agentMap.get(key).listings.push(listing);
     });
-    // 3. For each agent, add <10-Photos tag if not present
-    for (const [key, tags] of agentMap.entries()) {
+    // For each agent, check autotag filters and add tags if needed
+    for (const [key, { tags, listings }] of agentMap.entries()) {
       const [agent_name, agent_phone] = key.split('|');
       let tagArr = tags ? tags.split(',') : [];
-      if (!tagArr.includes('<10-Photos')) {
-        tagArr.push('<10-Photos');
+      // <10-Photos
+      if (listings.some((l: any) => l.photo_count < 10) && !tagArr.includes('<10-Photos')) tagArr.push('<10-Photos');
+      // High Value
+      if (
+        listings.some((l: any) =>
+          l.property_price &&
+          !isNaN(parseFloat(l.property_price)) &&
+          parseFloat(l.property_price) > 1500000
+        ) && !tagArr.includes('High Value')
+      ) tagArr.push('High Value');
+      // Remove 'New Listing' tag if present
+      tagArr = tagArr.filter((t: string) => t !== 'New Listing');
+      // Update if changed
+      if (tagArr.join(',') !== (tags || '')) {
         await supabase
           .from('listings')
           .update({ agent_tags: tagArr.join(',') })
           .eq('agent_name', agent_name)
           .eq('agent_phone', agent_phone);
-        // Update local state
         setContacts(prevContacts => prevContacts.map(c =>
           c.name === agent_name && c.phone === agent_phone
             ? { ...c, agent_tags: tagArr.join(',') }

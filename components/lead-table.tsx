@@ -87,6 +87,7 @@ const availableTags = [
   { id: "follow-up", name: "Follow Up", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/80 dark:text-orange-100 dark:border-orange-700", selectedColor: "bg-orange-200 text-orange-900 dark:bg-orange-800 dark:text-orange-50 dark:border-orange-600" },
   { id: "priority", name: "Priority", color: "bg-pink-100 text-pink-800 dark:bg-pink-900/80 dark:text-pink-100 dark:border-pink-700", selectedColor: "bg-pink-200 text-pink-900 dark:bg-pink-800 dark:text-pink-50 dark:border-pink-600" },
   { id: "many-photos", name: ">10-Photos", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/80 dark:text-emerald-100 dark:border-emerald-700", selectedColor: "bg-emerald-200 text-emerald-900 dark:bg-emerald-800 dark:text-emerald-50 dark:border-emerald-600" },
+  { id: "thirtyfive-photos", name: ">35-Photos", color: "bg-blue-700 text-white", selectedColor: "bg-blue-800 text-white" },
 ] as const
 
 // Update the status colors
@@ -160,6 +161,8 @@ export default function LeadTable() {
   const isMobile = useIsMobile();
   const [hoveredStatusId, setHoveredStatusId] = useState<string | null>(null);
   const [hoveredPopoverId, setHoveredPopoverId] = useState<string | null>(null);
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
   const { toast } = useToast()
 
@@ -210,6 +213,22 @@ export default function LeadTable() {
               .eq('id', lead.id);
           } else if (!isNew && hasNew) {
             tags = tags.filter((t: string) => t !== 'New');
+            await supabase
+              .from('listings')
+              .update({ agent_tags: tags.length ? tags.join(',') : null })
+              .eq('id', lead.id);
+          }
+
+          // Handle '>35-Photos' tag
+          const has35Photos = tags.includes('>35-Photos');
+          if (lead.photo_count >= 35 && !has35Photos) {
+            tags.push('>35-Photos');
+            await supabase
+              .from('listings')
+              .update({ agent_tags: tags.join(',') })
+              .eq('id', lead.id);
+          } else if (lead.photo_count < 35 && has35Photos) {
+            tags = tags.filter((t: string) => t !== '>35-Photos');
             await supabase
               .from('listings')
               .update({ agent_tags: tags.length ? tags.join(',') : null })
@@ -753,6 +772,42 @@ export default function LeadTable() {
     }
   };
 
+  // Helper to get all visible lead IDs
+  const visibleLeadIds = paginatedLeads.map(l => l.id);
+  const allLeadsSelected = visibleLeadIds.length > 0 && visibleLeadIds.every(id => selectedLeads.includes(id));
+  const toggleSelectAllLeads = () => {
+    if (allLeadsSelected) {
+      setSelectedLeads(selectedLeads.filter(id => !visibleLeadIds.includes(id)));
+    } else {
+      setSelectedLeads([...new Set([...selectedLeads, ...visibleLeadIds])]);
+    }
+  };
+  const toggleSelectLead = (id: string, index: number, event?: React.MouseEvent) => {
+    if (event && event.shiftKey && lastSelectedIndex !== null) {
+      // Shift-click: select range
+      const start = Math.min(lastSelectedIndex, index);
+      const end = Math.max(lastSelectedIndex, index);
+      const idsInRange = paginatedLeads.slice(start, end + 1).map(l => l.id);
+      setSelectedLeads(prev => Array.from(new Set([...prev, ...idsInRange])));
+    } else if (event && (event.metaKey || event.ctrlKey)) {
+      // Cmd/Ctrl-click: toggle individual
+      setSelectedLeads(selectedLeads =>
+        selectedLeads.includes(id)
+          ? selectedLeads.filter(cid => cid !== id)
+          : [...selectedLeads, id]
+      );
+      setLastSelectedIndex(index);
+    } else {
+      // Regular click: toggle and set last index
+      setSelectedLeads(selectedLeads =>
+        selectedLeads.includes(id)
+          ? selectedLeads.filter(cid => cid !== id)
+          : [...selectedLeads, id]
+      );
+      setLastSelectedIndex(index);
+    }
+  };
+
   return (
     <div className="flex flex-col w-full">
       <div className="flex flex-col gap-6 p-6">
@@ -832,11 +887,109 @@ export default function LeadTable() {
       </div>
     )}
 
+      {/* Bulk Actions Bar */}
+      {selectedLeads.length > 0 && (
+        <div className="flex items-center gap-4 p-3 border-b dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800">
+          <span className="font-medium">{selectedLeads.length} selected</span>
+          {/* Bulk Tag */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">Tag</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {availableTags.map(tag => (
+                <DropdownMenuItem key={tag.name} onClick={async () => {
+                  // Bulk add tag
+                  for (const id of selectedLeads) {
+                    const lead = leads.find(l => l.id === id);
+                    if (!lead) continue;
+                    const newTags = lead.agent_tags ? Array.from(new Set([...lead.agent_tags.split(','), tag.name])) : [tag.name];
+                    await supabase
+                      .from('listings')
+                      .update({ agent_tags: newTags.join(',') })
+                      .eq('id', lead.id);
+                    lead.agent_tags = newTags.join(',');
+                  }
+                  setLeads([...leads]);
+                }}>{tag.name}</DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Bulk Detag */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">Remove Tag</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {availableTags.map(tag => (
+                <DropdownMenuItem key={tag.name} onClick={async () => {
+                  // Bulk remove tag
+                  for (const id of selectedLeads) {
+                    const lead = leads.find(l => l.id === id);
+                    if (!lead) continue;
+                    const newTags = lead.agent_tags ? lead.agent_tags.split(',').filter(t => t !== tag.name) : [];
+                    await supabase
+                      .from('listings')
+                      .update({ agent_tags: newTags.length ? newTags.join(',') : undefined })
+                      .eq('id', lead.id);
+                    lead.agent_tags = newTags.length ? newTags.join(',') : undefined;
+                  }
+                  setLeads([...leads]);
+                }}>{tag.name}</DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Bulk Status Change */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">Change Status</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {statuses.map(status => (
+                <DropdownMenuItem key={status.id} onClick={async () => {
+                  for (const id of selectedLeads) {
+                    const lead = leads.find(l => l.id === id);
+                    if (!lead) continue;
+                    await supabase
+                      .from('listings')
+                      .update({ listing_source: status.name })
+                      .eq('id', lead.id);
+                    lead.listing_source = status.name;
+                  }
+                  setLeads([...leads]);
+                }}>{status.name}</DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Bulk Delete */}
+          <Button size="sm" variant="destructive" onClick={async () => {
+            if (!window.confirm(`Are you sure you want to delete ${selectedLeads.length} selected leads? This action cannot be undone.`)) return;
+            for (const id of selectedLeads) {
+              await supabase
+                .from('listings')
+                .delete()
+                .eq('id', id);
+            }
+            setLeads(leads.filter(l => !selectedLeads.includes(l.id)));
+            setSelectedLeads([]);
+          }}>Delete</Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectedLeads([])}>Clear</Button>
+        </div>
+      )}
+
       {/* Table Section */}
       <div className="rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-[40px]">
+              <input
+                type="checkbox"
+                checked={allLeadsSelected}
+                onChange={toggleSelectAllLeads}
+                className="accent-blue-500 w-4 h-4 rounded"
+              />
+            </TableHead>
             <TableHead className="w-[200px]">
               <Button
                 variant="ghost"
@@ -940,6 +1093,15 @@ export default function LeadTable() {
                     }}
                     style={{ cursor: 'pointer' }}
                   >
+                  <TableCell className="w-[40px]">
+                    <input
+                      type="checkbox"
+                      checked={selectedLeads.includes(lead.id)}
+                      onClick={e => toggleSelectLead(lead.id, index, e)}
+                      readOnly
+                      className="accent-blue-500 w-4 h-4 rounded"
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                       <button
                         onClick={() => toggleRowExpansion(lead.id)}

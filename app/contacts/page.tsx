@@ -36,10 +36,11 @@ interface Contact {
 
 // Tag options and color map
 const TAG_OPTIONS = [
-  '<10-Photos', 'High Value', 'Medium Value', 'Low Value', 'New', 'Responsive', 'Unresponsive', 'Follow Up', 'Priority'
+  '<10-Photos', '>35-Photos', 'High Value', 'Medium Value', 'Low Value', 'New', 'Responsive', 'Unresponsive', 'Follow Up', 'Priority'
 ];
 const TAG_COLORS: Record<string, string> = {
   '<10-Photos': 'bg-green-700 text-white',
+  '>35-Photos': 'bg-blue-700 text-white',
   'High Value': 'bg-orange-800 text-white',
   'Medium Value': 'bg-blue-800 text-white',
   'Low Value': 'bg-gray-600 text-white',
@@ -386,6 +387,10 @@ export default function ContactsPage() {
       let tagArr = Array.from(tags as Set<string>);
       // <10-Photos
       if (listings.some((l: any) => l.photo_count < 10) && !tagArr.includes('<10-Photos')) tagArr.push('<10-Photos');
+      // >35-Photos
+      if (listings.some((l: any) => l.photo_count >= 35) && !tagArr.includes('>35-Photos')) tagArr.push('>35-Photos');
+      // Remove >35-Photos if no listing qualifies
+      if (!listings.some((l: any) => l.photo_count >= 35)) tagArr = tagArr.filter((t: string) => t !== '>35-Photos');
       // High Value
       if (
         listings.some((l: any) =>

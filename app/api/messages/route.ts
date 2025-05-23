@@ -39,38 +39,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Support batching: limit and before (date or sid)
-    const limit = parseInt(searchParams.get('limit') || '200', 10)
-    const before = searchParams.get('before') // ISO date string or message SID
-
-    // Helper to build Twilio list params
-    const buildParams = (direction: 'to' | 'from') => {
-      const params: any = {
-        limit,
-      }
-      if (direction === 'to') {
-        params.to = contact
-        params.from = fromPhone
-      } else {
-        params.from = contact
-        params.to = fromPhone
-      }
-      if (before) {
-        // Twilio API supports 'dateSentBefore' (date only, not SID)
-        // If before is a date, use it; if SID, ignore (could be improved with extra lookup)
-        const beforeDate = new Date(before)
-        if (!isNaN(beforeDate.getTime())) {
-          params.dateSentBefore = beforeDate
-        }
-      }
-      return params
-    }
-
-    const messages = await twilio.messages.list(buildParams('to'))
-    const messagesFrom = await twilio.messages.list(buildParams('from'))
+    // Fetch messages to or from the contact
+    const messages = await twilio.messages.list({
+      to: contact,
+      from: fromPhone,
+      limit: 150,
+    });
+    const messagesFrom = await twilio.messages.list({
+      from: contact,
+      to: fromPhone,
+      limit: 150,
+    });
     // Combine and sort by date
-    const allMessages = [...messages, ...messagesFrom].sort((a, b) => new Date(a.dateSent).getTime() - new Date(b.dateSent).getTime())
-    return NextResponse.json({ messages: allMessages })
+    const allMessages = [...messages, ...messagesFrom].sort((a, b) => new Date(a.dateSent).getTime() - new Date(b.dateSent).getTime());
+    return NextResponse.json({ messages: allMessages });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to fetch messages' }, { status: 500 });
   }

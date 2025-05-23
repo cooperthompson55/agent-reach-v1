@@ -270,24 +270,24 @@ export default function ContactsPage() {
         if (isNew) newListingMap.set(agentKey, true);
         // Count unique addresses
         const addresses = new Set((listings.map((l: any) => l.property_address).filter(Boolean)) as string[]);
-        agentMap.set(agentKey, {
-          contact: {
-            id: agentKey,
+          agentMap.set(agentKey, {
+            contact: {
+              id: agentKey,
             name: firstListing.agent_name || 'N/A',
             email: firstListing.agent_email || '',
             phone: firstListing.agent_phone,
             brokerage: firstListing.brokerage_name,
             instagram: firstListing.instagram_account,
             listings: addresses.size,
-            lastContact: 'N/A',
+              lastContact: 'N/A',
             avatar: firstListing.agent_name ? firstListing.agent_name[0].toUpperCase() : '?',
-            favorite: false,
+              favorite: false,
             agent_tags: Array.from(allTags).join(',') || null,
             agent_status: lockedStatuses.includes(status) ? firstListing.agent_status : status,
             contact_logs: firstListing.contact_logs || [],
-          },
+            },
           addresses,
-        });
+          });
       });
       // After collecting all contacts, aggregate tags only (do not add/remove 'New' here)
       const contactsArr = Array.from(agentMap.values()).map(entry => {

@@ -974,8 +974,8 @@ export default function LeadTable() {
             setSelectedLeads([]);
           }}>Delete</Button>
           <Button size="sm" variant="ghost" onClick={() => setSelectedLeads([])}>Clear</Button>
-        </div>
-      )}
+      </div>
+    )}
 
       {/* Table Section */}
       <div className="rounded-md border overflow-x-auto">

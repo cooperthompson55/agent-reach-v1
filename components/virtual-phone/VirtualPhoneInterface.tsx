@@ -34,12 +34,33 @@ export default function VirtualPhoneInterface() {
     setSelectedContact(null)
   }
 
-    return (    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-gray-200 dark:border-zinc-800 max-w-2xl mx-auto">      {selectedContact ? (        <div className="flex flex-col h-[600px]">          <div className="md:hidden flex items-center p-3 border-b dark:border-zinc-800">            <Button               variant="ghost"               size="icon"               onClick={handleBackToList}              className="mr-2"            >              <ArrowLeft className="h-5 w-5" />            </Button>            <span className="font-medium">{selectedContact.name}</span>          </div>          <div className="flex-1 overflow-hidden">            <ConversationView contact={selectedContact} onBack={handleBackToList} />          </div>        </div>      ) : (
-        <div className="h-[600px]">
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-gray-200 dark:border-zinc-800 max-w-2xl mx-auto min-h-screen h-screen flex flex-col">
+      {selectedContact ? (
+        <div className="flex flex-col flex-1 h-full">
+          <div className="md:hidden flex items-center p-3 border-b dark:border-zinc-800">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleBackToList}
+              className="mr-2"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <span className="font-medium">{selectedContact.name}</span>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <ConversationView contact={selectedContact} onBack={handleBackToList} />
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col flex-1 h-full">
           <div className="flex items-center justify-between p-4 border-b dark:border-zinc-800">
             <h2 className="text-xl font-semibold">Messages</h2>
           </div>
-          <MessageList onSelectContact={setSelectedContact} />
+          <div className="flex-1 overflow-hidden">
+            <MessageList onSelectContact={setSelectedContact} />
+          </div>
         </div>
       )}
     </div>

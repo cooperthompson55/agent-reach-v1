@@ -17,6 +17,18 @@ interface MessageListProps {
   onSelectContact: (contact: Contact) => void
 }
 
+// Helper to normalize phone numbers to digits only, with optional country code handling
+function normalizePhone(phone: string): string {
+  // Remove all non-digit characters
+  let digits = (phone || '').replace(/\D/g, '')
+  // If the number is 10 digits, assume US and add country code
+  if (digits.length === 10) {
+    digits = '1' + digits
+  }
+  // Always return as +<countrycode><number>
+  return '+' + digits
+}
+
 export default function MessageList({ onSelectContact }: MessageListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -44,10 +56,10 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
       const res = await fetch('/api/contacts')
       const data = await res.json()
       if (data.contacts) {
-        // Deduplicate by agent_phone, prefer non-empty agent_name
+        // Deduplicate by normalized agent_phone, prefer non-empty agent_name
         const uniqueAgents: { [phone: string]: string } = {}
         data.contacts.forEach((a: any) => {
-          const phone = (a.agent_phone || '').replace(/\D/g, '') // normalize to digits only
+          const phone = normalizePhone(a.agent_phone)
           if (phone && (!uniqueAgents[phone] || (a.agent_name && a.agent_name.trim()))) {
             uniqueAgents[phone] = a.agent_name?.trim() || phone
           }
@@ -68,9 +80,9 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
         const mapped: Contact[] = messages.map((msg: any, idx: number) => {
           // Determine the other party (not your own Twilio number)
           const otherPhoneRaw = msg.from === TWILIO_PHONE ? msg.to : msg.from
-          const otherPhone = (otherPhoneRaw || '').replace(/\D/g, '') // normalize
-          if (otherPhone === TWILIO_PHONE.replace(/\D/g, '')) return null // skip self
-          const agent = agents.find(a => (a.agent_phone || '').replace(/\D/g, '') === otherPhone)
+          const otherPhone = normalizePhone(otherPhoneRaw)
+          if (otherPhone === normalizePhone(TWILIO_PHONE)) return null // skip self
+          const agent = agents.find(a => normalizePhone(a.agent_phone) === otherPhone)
           // Determine if the last message was received (inbound)
           const isReceived = msg.direction && msg.direction.startsWith('inbound');
           // Use a stable message ID: sid if available, else timestamp string, else idx
@@ -84,8 +96,8 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
           }
           return {
             id: otherPhone + idx,
-            name: agent ? agent.agent_name : otherPhoneRaw,
-            phone: otherPhoneRaw,
+            name: agent ? agent.agent_name : otherPhone, // fallback to normalized phone
+            phone: otherPhone, // always normalized
             lastMessage: msg.body,
             lastMessageTime: new Date(msg.dateSent).toLocaleString(),
             isReceived,

@@ -19,9 +19,9 @@ export async function GET(request: Request) {
 
   if (contact === 'all') {
     try {
-      // Fetch recent messages (limit 100 for performance)
+      // Fetch recent messages (limit 2000 for performance)
       const messages = await twilio.messages.list({
-        limit: 100,
+        limit: 2000,
       });
       // Group by contact (other party in the conversation)
       const contactMap = new Map();

@@ -6,6 +6,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Send, Paperclip, CheckCheck, Clock, ArrowLeft } from 'lucide-react'
+import ContactDetailsModal from '@/components/contacts/ContactDetailsModal'
 
 interface ConversationViewProps {
   contact: Contact
@@ -21,6 +22,7 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [agents, setAgents] = useState<{ agent_name: string, agent_phone: string }[]>([])
+  const [contactDetailsOpen, setContactDetailsOpen] = useState(false)
 
   // Helper to map API messages to Message type
   const mapMessages = (msgs: any[]): Message[] =>
@@ -148,7 +150,13 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
             </div>
           </Avatar>
           <div>
-            <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">{displayName}</h3>
+            <h3
+              className="text-sm font-medium text-gray-900 dark:text-zinc-100 cursor-pointer hover:underline"
+              onClick={() => setContactDetailsOpen(true)}
+              title="View contact details"
+            >
+              {displayName}
+            </h3>
             {contact.role && <p className="text-xs text-gray-500 dark:text-zinc-400">{contact.role}</p>}
           </div>
         </div>
@@ -216,6 +224,12 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
           </Button>
         </div>
       </div>
+      {contactDetailsOpen && (
+        <ContactDetailsModal
+          contact={contact}
+          onClose={() => setContactDetailsOpen(false)}
+        />
+      )}
     </div>
   )
 } 

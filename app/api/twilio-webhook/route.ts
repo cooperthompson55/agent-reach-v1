@@ -11,33 +11,33 @@ export async function POST(request: Request) {
     const to = data.get('To');
     const body = data.get('Body');
     // Log the received SMS in contact_logs
-    const { data: listing, error: fetchError } = await supabase
+    const { data: listings, error: fetchError } = await supabase
       .from('listings')
       .select('id, contact_logs')
-      .eq('agent_phone', from)
-      .limit(1)
-      .single();
-    let logs = [];
-    if (listing && listing.contact_logs) {
-      try {
-        logs = Array.isArray(listing.contact_logs) ? listing.contact_logs : JSON.parse(listing.contact_logs);
-      } catch {
-        logs = [];
+      .eq('agent_phone', from);
+    if (listings && Array.isArray(listings) && listings.length > 0) {
+      for (const listing of listings) {
+        let logs = [];
+        if (listing && listing.contact_logs) {
+          try {
+            logs = Array.isArray(listing.contact_logs) ? listing.contact_logs : JSON.parse(listing.contact_logs);
+          } catch {
+            logs = [];
+          }
+        }
+        logs.push({
+          type: 'sms',
+          message: body,
+          timestamp: new Date().toISOString(),
+          sent_by: from,
+          to,
+          direction: 'inbound',
+        });
+        await supabase
+          .from('listings')
+          .update({ contact_logs: logs })
+          .eq('id', listing.id);
       }
-    }
-    logs.push({
-      type: 'sms',
-      message: body,
-      timestamp: new Date().toISOString(),
-      sent_by: from,
-      to,
-      direction: 'inbound',
-    });
-    if (listing && listing.id) {
-      await supabase
-        .from('listings')
-        .update({ contact_logs: logs })
-        .eq('id', listing.id);
     }
     // For now, just log the message. You can extend this to store in DB, etc.
     console.log('Incoming SMS:', { from, to, body });

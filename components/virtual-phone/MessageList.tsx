@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
 import { Search } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog'
+import SmsTemplateModal from '@/components/sms-template-modal'
 
 type Contact = BaseContact & {
   lastMessageId?: string
@@ -37,6 +38,9 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [pendingReadContact, setPendingReadContact] = useState<Contact | null>(null)
   const longPressTimeout = useRef<NodeJS.Timeout | null>(null)
+  const [visibleCount, setVisibleCount] = useState(100)
+  const [smsModalOpen, setSmsModalOpen] = useState(false)
+  const [smsContact, setSmsContact] = useState<Contact | null>(null)
 
   const TWILIO_PHONE = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || ''
 
@@ -199,7 +203,7 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
       </div>
       
       <div className="overflow-y-auto flex-1 bg-white dark:bg-zinc-900">
-        {sortedContacts.map(contact => (
+        {sortedContacts.slice(0, visibleCount).map(contact => (
           <div 
             key={contact.id}
             className="border-b dark:border-zinc-800 p-4 hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
@@ -210,7 +214,7 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
           >
             <div className="flex items-center space-x-3">
               <div className="relative">
-                <Avatar className="h-10 w-10 bg-gray-200 dark:bg-zinc-800">
+                <Avatar className="h-10 w-10 bg-gray-200 dark:bg-zinc-800" onClick={e => { e.stopPropagation(); setSmsContact(contact); setSmsModalOpen(true); }} style={{ cursor: 'pointer' }}>
                   <div className="font-medium text-lg text-gray-700 dark:text-zinc-100">
                     {contact.name.charAt(0)}
                   </div>
@@ -249,7 +253,25 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
             </div>
           </div>
         ))}
+        {visibleCount < sortedContacts.length && (
+          <div className="flex justify-center py-4">
+            <button
+              className="px-6 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 shadow"
+              onClick={() => setVisibleCount(c => c + 100)}
+            >
+              Load More
+            </button>
+          </div>
+        )}
       </div>
+      {smsModalOpen && smsContact && (
+        <SmsTemplateModal
+          isOpen={smsModalOpen}
+          onClose={() => setSmsModalOpen(false)}
+          agentName={smsContact.name}
+          agentPhone={smsContact.phone}
+        />
+      )}
     </div>
   )
 } 

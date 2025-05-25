@@ -34,6 +34,11 @@ const smsTemplates = [
   name: "Pro Photos",
   body: `Hey {FirstName}, saw your listing at {PropertyAddress} and the photography looks great! I'm a local real estate photographer always looking to connect with agents who value quality visuals. Would love to introduce myself in case you ever need a photographer for future listings. Thanks! - Cooper, Owner of RePhotos.ca`,
 },
+{
+  id: "no-response",
+  name: "No Response",
+  body: "Let me know if you ever need pricing or want to check out my full list of services. Always around if you need help with a listing in {Town}"
+},
 ]
 
 interface SmsTemplate {
@@ -115,7 +120,7 @@ export default function SmsTemplateModal({
     let progressResults: string[] = [];
     if (contacts && contacts.length > 0) {
       // Bulk mode: Only send one message per contact, using the first selected listing for that contact
-      const sendPairs: { contact: typeof contacts[0]; listing: any | null }[] = [];
+      let sendPairs: { contact: typeof contacts[0]; listing: any | null }[] = [];
       const seenPhones = new Set<string>();
       for (const contact of contacts) {
         if (!contact.phone) continue;
@@ -126,6 +131,16 @@ export default function SmsTemplateModal({
         sendPairs.push({ contact, listing: firstListing });
         seenPhones.add(contact.phone);
       }
+      // FINAL DEDUPLICATION: Ensure no phone appears more than once
+      const dedupedSendPairs: { contact: typeof contacts[0]; listing: any | null }[] = [];
+      const dedupedPhones = new Set<string>();
+      for (const pair of sendPairs) {
+        if (!pair.contact.phone) continue;
+        if (dedupedPhones.has(pair.contact.phone)) continue;
+        dedupedSendPairs.push(pair);
+        dedupedPhones.add(pair.contact.phone);
+      }
+      sendPairs = dedupedSendPairs;
       totalCount = sendPairs.length;
       const BATCH_SIZE = 10;
       for (let i = 0; i < sendPairs.length; i += BATCH_SIZE) {
@@ -345,6 +360,15 @@ export default function SmsTemplateModal({
               className="min-h-[150px]"
             />
           </div>
+          {/* Live preview for single SMS mode */}
+          {(!contacts || contacts.length === 0) && (
+            <div className="mt-2">
+              <label className="block text-xs font-medium mb-1 text-gray-500">Preview</label>
+              <div className="border rounded bg-gray-50 dark:bg-zinc-800 p-3 text-sm text-gray-800 dark:text-zinc-100 whitespace-pre-line">
+                {replaceVariables(smsBody, agentName, toPhone, selectedListing)}
+              </div>
+            </div>
+          )}
           <div className="flex justify-end pt-2">
             <Button 
               onClick={handleSendSms} 

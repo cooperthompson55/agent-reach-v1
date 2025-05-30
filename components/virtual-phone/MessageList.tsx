@@ -7,6 +7,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Search } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import SmsTemplateModal from '@/components/sms-template-modal'
+import { supabase } from '@/lib/supabase'
 
 type Contact = BaseContact & {
   lastMessageId?: string
@@ -41,6 +42,7 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
   const [visibleCount, setVisibleCount] = useState(100)
   const [smsModalOpen, setSmsModalOpen] = useState(false)
   const [smsContact, setSmsContact] = useState<Contact | null>(null)
+  const [smsListings, setSmsListings] = useState<any[]>([])
 
   const TWILIO_PHONE = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || ''
 
@@ -170,6 +172,54 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
     setPendingReadContact(null)
   }
 
+  // Handler for avatar click to open SMS modal with listings
+  const handleAvatarClick = async (contact: Contact, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Normalize phone for querying
+    const normalizedPhone = normalizePhone(contact.phone);
+
+    // Try to fetch listings with both name and phone
+    let { data } = await supabase
+      .from('listings')
+      .select('id, property_address, property_city, agent_name, agent_phone')
+      .eq('agent_name', contact.name)
+      .eq('agent_phone', normalizedPhone);
+
+    // If no listings, try with just phone
+    if (!data || data.length === 0) {
+      const alt = await supabase
+        .from('listings')
+        .select('id, property_address, property_city, agent_name, agent_phone')
+        .eq('agent_phone', normalizedPhone);
+      data = alt.data;
+    }
+
+    // If still no listings, try with just name
+    if ((!data || data.length === 0) && contact.name) {
+      const alt = await supabase
+        .from('listings')
+        .select('id, property_address, property_city, agent_name, agent_phone')
+        .eq('agent_name', contact.name);
+      data = alt.data;
+    }
+
+    setSmsListings(data || []);
+
+    // Use agent_name and agent_phone from the first listing if available
+    let modalContact = contact;
+    if (data && data.length > 0) {
+      modalContact = {
+        ...contact,
+        name: data[0].agent_name || contact.name,
+        phone: data[0].agent_phone || contact.phone,
+      };
+    }
+
+    setSmsContact(modalContact);
+    setSmsModalOpen(true);
+  };
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-zinc-900">
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -214,7 +264,7 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
           >
             <div className="flex items-center space-x-3">
               <div className="relative">
-                <Avatar className="h-10 w-10 bg-gray-200 dark:bg-zinc-800" onClick={e => { e.stopPropagation(); setSmsContact(contact); setSmsModalOpen(true); }} style={{ cursor: 'pointer' }}>
+                <Avatar className="h-10 w-10 bg-gray-200 dark:bg-zinc-800" onClick={e => handleAvatarClick(contact, e)} style={{ cursor: 'pointer' }}>
                   <div className="font-medium text-lg text-gray-700 dark:text-zinc-100">
                     {contact.name.charAt(0)}
                   </div>
@@ -270,6 +320,9 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
           onClose={() => setSmsModalOpen(false)}
           agentName={smsContact.name}
           agentPhone={smsContact.phone}
+          contacts={[{ name: smsContact.name, phone: smsContact.phone }]}
+          listings={smsListings}
+          agentListingsMap={{ [`${smsContact.name}|${smsContact.phone}`]: smsListings }}
         />
       )}
     </div>

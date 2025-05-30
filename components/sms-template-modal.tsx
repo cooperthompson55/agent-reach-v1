@@ -66,6 +66,7 @@ export default function SmsTemplateModal({
   contacts = [],
   agentListingsMap = {},
 }: SmsTemplateModalProps) {
+  console.log('Listings prop:', listings);
   const [selectedTemplate, setSelectedTemplate] = useState<SmsTemplate>(smsTemplates[0])
   const [smsBody, setSmsBody] = useState("")
   const [toPhone, setToPhone] = useState(agentPhone || "")
@@ -76,22 +77,56 @@ export default function SmsTemplateModal({
   const selectedListing = listings.find(l => l.id === selectedListingId) || listings[0] || null;
   const [selectedListingIds, setSelectedListingIds] = useState<string[]>(listings.map(l => l.id));
 
+  // Ensure selectedListingId is always valid and updated when listings or modal open state changes
+  useEffect(() => {
+    if (isOpen && listings.length > 0) {
+      setSelectedListingId(listings[0].id);
+    }
+  }, [isOpen, listings]);
+
   useEffect(() => {
     setToPhone(agentPhone || "");
     if (isOpen) {
       setSelectedListingIds(listings.map(l => l.id));
     }
     // eslint-disable-next-line
-  }, [isOpen]);
+  }, [isOpen, listings]);
 
-  const replaceVariables = (text: string, name?: string, phone?: string, listing?: { property_address: string; property_city: string; id: string }) => {
+  const replaceVariables = (text: string, name?: string, phone?: string, listing?: { property_address: string; property_city: string; id: string; agent_name?: string; agent_phone?: string }) => {
+    let agentNameToUse = "";
+    let agentPhoneToUse = "";
+    let propertyAddressToUse = "";
+    let townToUse = "";
+
+    // Prioritize selectedListing for single contact mode or if explicit listing is passed
+    const currentListing = listing || selectedListing;
+
+    if (currentListing) {
+      agentNameToUse = currentListing.agent_name || name || agentName || "";
+      agentPhoneToUse = currentListing.agent_phone || phone || agentPhone || "";
+      propertyAddressToUse = currentListing.property_address || "";
+      townToUse = currentListing.property_city || "";
+    } else {
+      // Fallback for bulk mode without a specific listing for a contact, or if no listings at all
+      agentNameToUse = name || agentName || "";
+      agentPhoneToUse = phone || agentPhone || "";
+      // For bulk SMS, a general listing might not be applicable for address/town if not selected per contact
+      // but for single SMS, if there's no listing, these might be empty or rely on a broader context if available.
+      // For now, leave them to be potentially empty if no specific listing.
+    }
+     
+    // Ensure FirstName is derived correctly
+    const firstName = (currentListing?.agent_name || name || agentName)?.split(" ")[0] || "";
+    townToUse = townToUse || (listings[0]?.property_city) || "the area";
+
+
     const variables: Record<string, string> = {
-      FirstName: name?.split(" ")[0] || agentName?.split(" ")[0] || "",
-      AgentName: name || agentName || "",
-      AgentPhone: phone || agentPhone || "",
-      PropertyAddress: listing?.property_address || selectedListing?.property_address || "",
-      Town: listing?.property_city || selectedListing?.property_city || "the area",
-      Time: "2:00 PM",
+      FirstName: firstName,
+      AgentName: agentNameToUse,
+      AgentPhone: agentPhoneToUse,
+      PropertyAddress: propertyAddressToUse,
+      Town: townToUse,
+      Time: "2:00 PM", // Placeholder, consider making this dynamic or removing
     };
     return text.replace(/\{([^}]+)\}/g, (match, key) => {
       return variables[key] !== undefined ? variables[key] : match;
@@ -188,7 +223,7 @@ export default function SmsTemplateModal({
     }
     // Single mode
     try {
-      const finalBody = replaceVariables(smsBody)
+      const finalBody = replaceVariables(smsBody, agentName, toPhone, selectedListing);
       const response = await fetch('/api/send-sms', {
         method: 'POST',
         headers: {
@@ -315,24 +350,6 @@ export default function SmsTemplateModal({
               />
             </div>
           )}
-          <div className="mb-4">
-            {listings.length > 0 && (
-              <div className="mb-2">
-                <label className="block text-sm font-medium mb-1">Listing</label>
-                <select
-                  className="w-full rounded border px-3 py-2 bg-white dark:bg-zinc-900 dark:text-zinc-100"
-                  value={selectedListingId}
-                  onChange={e => setSelectedListingId(e.target.value)}
-                >
-                  {listings.map(listing => (
-                    <option key={listing.id} value={listing.id}>
-                      {listing.property_address}, {listing.property_city}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
           <div>
             <label className="block text-sm font-medium mb-2">Templates</label>
             <div className="flex flex-wrap gap-2">

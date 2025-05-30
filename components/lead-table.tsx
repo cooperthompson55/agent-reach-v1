@@ -624,7 +624,10 @@ export default function LeadTable() {
         description: `Removed ${duplicateIds.length} duplicate listings.`,
       });
     } catch (error) {
-      console.error('Error removing duplicate listings:', error);
+      // Enhanced error logging for better debugging
+      const errorMessage = typeof error === 'object' && error !== null && 'message' in error ? (error as any).message : undefined;
+      const errorDetails = typeof error === 'object' && error !== null && 'details' in error ? (error as any).details : undefined;
+      console.error('Error removing duplicate listings:', error, JSON.stringify(error), errorMessage, errorDetails);
       toast({
         title: "Error",
         description: "Failed to remove duplicate listings. Please try again.",

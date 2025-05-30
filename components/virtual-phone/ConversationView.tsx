@@ -5,8 +5,10 @@ import { Contact, Message } from './VirtualPhoneInterface'
 import { Avatar } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Send, Paperclip, CheckCheck, Clock, ArrowLeft } from 'lucide-react'
+import { Send, Paperclip, CheckCheck, Clock, ArrowLeft, MessageSquare, Loader2 } from 'lucide-react'
 import ContactDetailsModal from '@/components/contacts/ContactDetailsModal'
+import SmsTemplateModal from '@/components/sms-template-modal'
+import { supabase } from '@/lib/supabase'
 
 interface ConversationViewProps {
   contact: Contact
@@ -23,6 +25,11 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [agents, setAgents] = useState<{ agent_name: string, agent_phone: string }[]>([])
   const [contactDetailsOpen, setContactDetailsOpen] = useState(false)
+  const [smsModalOpen, setSmsModalOpen] = useState(false)
+  const [smsContact, setSmsContact] = useState<Contact | null>(null)
+  const [smsListings, setSmsListings] = useState<any[]>([])
+  const [fullContactDetails, setFullContactDetails] = useState<any | null>(null)
+  const [loadingContactDetails, setLoadingContactDetails] = useState(false)
 
   // Helper to map API messages to Message type
   const mapMessages = (msgs: any[]): Message[] =>
@@ -131,6 +138,141 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
   const agent = agents.find(a => a.agent_phone === contact.phone)
   const displayName = contact.name || (agent ? agent.agent_name : contact.phone)
 
+  // Helper to normalize phone numbers to digits only, with optional country code handling
+  function normalizePhone(phone: string): string {
+    let digits = (phone || '').replace(/\D/g, '')
+    if (digits.length === 10) {
+      digits = '1' + digits
+    }
+    return '+' + digits
+  }
+
+  // Handler to open SMS modal with listings (copied from MessageList)
+  const handleMessageIconClick = async () => {
+    // Normalize phone for querying
+    const normalizedPhone = normalizePhone(contact.phone);
+
+    // Try to fetch listings with both name and phone
+    let { data } = await supabase
+      .from('listings')
+      .select('id, property_address, property_city, agent_name, agent_phone')
+      .eq('agent_name', contact.name)
+      .eq('agent_phone', normalizedPhone);
+
+    // If no listings, try with just phone
+    if (!data || data.length === 0) {
+      const alt = await supabase
+        .from('listings')
+        .select('id, property_address, property_city, agent_name, agent_phone')
+        .eq('agent_phone', normalizedPhone);
+      data = alt.data;
+    }
+
+    // If still no listings, try with just name
+    if ((!data || data.length === 0) && contact.name) {
+      const alt = await supabase
+        .from('listings')
+        .select('id, property_address, property_city, agent_name, agent_phone')
+        .eq('agent_name', contact.name);
+      data = alt.data;
+    }
+
+    setSmsListings(data || []);
+
+    // Use agent_name and agent_phone from the first listing if available
+    let modalContact = contact;
+    if (data && data.length > 0) {
+      modalContact = {
+        ...contact,
+        name: data[0].agent_name || contact.name,
+        phone: data[0].agent_phone || contact.phone,
+      };
+    }
+
+    setSmsContact(modalContact);
+    setSmsModalOpen(true);
+  };
+
+  // Fetch full contact details when opening the modal
+  const handleOpenContactDetails = async () => {
+    setLoadingContactDetails(true)
+    // Try to fetch by phone (normalized)
+    let normalizedPhone = contact.phone
+    if (normalizedPhone && !normalizedPhone.startsWith('+')) {
+      let digits = normalizedPhone.replace(/\D/g, '')
+      if (digits.length === 10) digits = '1' + digits
+      normalizedPhone = '+' + digits
+    }
+    let { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .or(`agent_phone.eq.${normalizedPhone},phone.eq.${normalizedPhone}`)
+      .limit(1)
+      .single()
+    // If not found, try by name
+    if ((!data || error) && contact.name) {
+      const alt = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('agent_name', contact.name)
+        .limit(1)
+        .single()
+      data = alt.data
+    }
+    // Fetch listings for this contact
+    let listingsCount = 0
+    if (data?.agent_name && data?.agent_phone) {
+      const { data: listingsData } = await supabase
+        .from('listings')
+        .select('id')
+        .eq('agent_name', data.agent_name)
+        .eq('agent_phone', data.agent_phone)
+      listingsCount = listingsData ? listingsData.length : 0
+    }
+    // Ensure contact_logs is present and is an array
+    let logs = data?.contact_logs || []
+    if (typeof logs === 'string') {
+      try {
+        logs = JSON.parse(logs)
+      } catch {
+        logs = []
+      }
+    }
+    // Compute lastContact from logs if possible
+    let lastContact = ''
+    if (Array.isArray(logs) && logs.length > 0) {
+      const lastLog = logs.reduce((latest, log) => {
+        if (!log.timestamp) return latest
+        if (!latest) return log
+        return new Date(log.timestamp) > new Date(latest.timestamp) ? log : latest
+      }, null)
+      if (lastLog && lastLog.timestamp) {
+        lastContact = new Date(lastLog.timestamp).toLocaleString()
+      }
+    }
+    // Enrich the contact object to match the shape expected by ContactDetailsModal
+    const enriched = {
+      id: data?.id || contact.id || '',
+      name: data?.agent_name || contact.name || '',
+      email: data?.agent_email || data?.email || '',
+      phone: data?.agent_phone || contact.phone || '',
+      brokerage: data?.brokerage || data?.brokerage_name || '',
+      instagram: data?.instagram_account || '',
+      listings: listingsCount,
+      lastContact,
+      avatar: (data?.agent_name || contact.name || ' ')[0],
+      favorite: !!data?.favorite,
+      agent_tags: data?.agent_tags || '',
+      agent_status: data?.agent_status || '',
+      contact_logs: logs,
+      ...data,
+      ...Object.fromEntries(Object.entries(contact).filter(([k]) => !['id','name','phone','avatar','role','isOnline','isReceived','lastMessage','lastMessageTime','unreadCount'].includes(k)))
+    }
+    setFullContactDetails(enriched)
+    setLoadingContactDetails(false)
+    setContactDetailsOpen(true)
+  }
+
   return (
     <div className="flex flex-col h-full w-full bg-white dark:bg-zinc-900">
       <div className="flex items-center p-4 bg-white dark:bg-zinc-900 border-b dark:border-zinc-800 gap-2">
@@ -152,7 +294,7 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
           <div>
             <h3
               className="text-sm font-medium text-gray-900 dark:text-zinc-100 cursor-pointer hover:underline"
-              onClick={() => setContactDetailsOpen(true)}
+              onClick={handleOpenContactDetails}
               title="View contact details"
             >
               {displayName}
@@ -160,6 +302,16 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
             {contact.role && <p className="text-xs text-gray-500 dark:text-zinc-400">{contact.role}</p>}
           </div>
         </div>
+        {/* Message icon button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto"
+          onClick={handleMessageIconClick}
+          title="Send SMS"
+        >
+          <MessageSquare className="h-5 w-5 text-blue-500" />
+        </Button>
       </div>
       
       <div
@@ -225,9 +377,26 @@ export default function ConversationView({ contact, onBack }: ConversationViewPr
         </div>
       </div>
       {contactDetailsOpen && (
-        <ContactDetailsModal
-          contact={contact}
-          onClose={() => setContactDetailsOpen(false)}
+        loadingContactDetails ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+          </div>
+        ) : (
+          <ContactDetailsModal
+            contact={fullContactDetails || contact}
+            onClose={() => setContactDetailsOpen(false)}
+          />
+        )
+      )}
+      {smsModalOpen && smsContact && (
+        <SmsTemplateModal
+          isOpen={smsModalOpen}
+          onClose={() => setSmsModalOpen(false)}
+          agentName={smsContact.name}
+          agentPhone={smsContact.phone}
+          contacts={[{ name: smsContact.name, phone: smsContact.phone }]}
+          listings={smsListings}
+          agentListingsMap={{ [`${smsContact.name}|${smsContact.phone}`]: smsListings }}
         />
       )}
     </div>

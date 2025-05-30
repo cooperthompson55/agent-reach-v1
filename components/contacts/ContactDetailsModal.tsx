@@ -29,14 +29,15 @@ const TAG_COLORS: Record<string, string> = {
 
 export default function ContactDetailsModal({ contact, onClose, onTagChange, initialTab }: { contact: any; onClose: () => void; onTagChange?: (tag: string[]) => void; initialTab?: string }) {
   const [tab, setTab] = useState(initialTab || "Overview");
+  const [currentContact, setCurrentContact] = useState<any>(contact);
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [tag, setTag] = useState<string[]>(contact.agent_tags ? contact.agent_tags.split(',') : []);
+  const [tag, setTag] = useState<string[]>([]);
   const [editingTags, setEditingTags] = useState(false);
   const [updatingTag, setUpdatingTag] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
-  const [emailValue, setEmailValue] = useState(contact.email || "");
+  const [emailValue, setEmailValue] = useState(contact?.email || "");
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
@@ -44,29 +45,122 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
   const [emailListings, setEmailListings] = useState<any[]>([]);
   const [smsListings, setSmsListings] = useState<any[]>([]);
 
+  // Helper to normalize phone numbers
+  function normalizePhone(phone: string): string {
+    let digits = (phone || '').replace(/\D/g, '');
+    if (digits.length === 10) digits = '1' + digits;
+    return '+' + digits;
+  }
+
   useEffect(() => {
-    async function fetchListings() {
+    // When contact prop changes, update currentContact and reset related states
+    setCurrentContact(contact);
+    setListings([]); // Reset listings
+    setTag(contact?.agent_tags ? contact.agent_tags.split(',') : []);
+    setEmailValue(contact?.email || "");
+    // Potentially reset other contact-specific states here if necessary
+  }, [contact]);
+
+  useEffect(() => {
+    async function fetchContactData() {
+      if (!currentContact?.phone && !currentContact?.name) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
-      const { data, error } = await supabase
-        .from('listings')
-        .select('id, listing_date, listing_url, photo_count, property_price, property_address, property_city')
-        .eq('agent_name', contact.name)
-        .eq('agent_phone', contact.phone);
-      if (!error && data) setListings(data);
+
+      let contactDetailsToUse = { ...currentContact };
+
+      // Fetch full contact details from 'contacts' table if not all details are present
+      if (!contactDetailsToUse.brokerage || !contactDetailsToUse.email || !contactDetailsToUse.instagram_account) {
+        const normalizedPhone = contactDetailsToUse.phone ? normalizePhone(contactDetailsToUse.phone) : null;
+        let { data: fetchedContactData, error: contactError } = await supabase
+          .from('contacts') // Assuming your main contacts table is named 'contacts'
+          .select('*')
+          .or(`agent_phone.eq.${normalizedPhone},phone.eq.${normalizedPhone}`)
+          .limit(1)
+          .single();
+        
+        if ((!fetchedContactData || contactError) && contactDetailsToUse.name) {
+           const { data: altContactData, error: altContactError } = await supabase
+            .from('contacts')
+            .select('*')
+            .eq('agent_name', contactDetailsToUse.name)
+            .limit(1)
+            .single();
+          if (altContactData) fetchedContactData = altContactData;
+        }
+
+        if (fetchedContactData) {
+          // Update local copy for this fetch cycle
+          contactDetailsToUse = { ...contactDetailsToUse, ...fetchedContactData };
+          // Update state if it's different from initial currentContact, to trigger re-renders for dependent UI
+          if (JSON.stringify(currentContact) !== JSON.stringify(contactDetailsToUse)) {
+            setCurrentContact(contactDetailsToUse);
+          }
+          setTag(fetchedContactData.agent_tags ? fetchedContactData.agent_tags.split(',') : []);
+          setEmailValue(fetchedContactData.email || "");
+        }
+      }
+
+      // Fetch listings for the current contact using the potentially updated contactDetailsToUse
+      const phoneToQuery = contactDetailsToUse.phone ? normalizePhone(contactDetailsToUse.phone) : null;
+      const nameToQuery = contactDetailsToUse.name;
+      
+      let listingsData = null;
+      let listingsError = null;
+
+      if (!nameToQuery && !phoneToQuery) {
+        // No identifiers to query listings, so set to empty and skip fetching.
+        setListings([]);
+        // setLoading(false) will be called at the end of fetchContactData
+      } else {
+        let queryBuilder = supabase
+          .from('listings')
+          .select('id, listing_date, listing_url, photo_count, property_price, property_address, property_city, agent_name, agent_phone');
+
+        if (nameToQuery && phoneToQuery) {
+          // Most specific: match both name and phone on the listing
+          queryBuilder = queryBuilder.eq('agent_name', nameToQuery).eq('agent_phone', phoneToQuery);
+        } else if (nameToQuery) {
+          // Match by name only
+          queryBuilder = queryBuilder.eq('agent_name', nameToQuery);
+        } else { // phoneToQuery must be non-null here as per the initial check
+          // Match by phone only
+          queryBuilder = queryBuilder.eq('agent_phone', phoneToQuery);
+        }
+        
+        const { data, error } = await queryBuilder;
+        listingsData = data;
+        listingsError = error;
+      }
+
+      if (!listingsError && listingsData) {
+        setListings(listingsData);
+      } else if (listingsError) {
+        console.error("Error fetching listings:", listingsError.message);
+        setListings([]);
+      } else {
+        // Handles cases where listingsData might be null without an error (e.g., if !nameToQuery && !phoneToQuery)
+        // or if the query returned no results (data would be an empty array or null).
+        setListings(listingsData || []); 
+      }
+      
       setLoading(false);
     }
-    if (tab === "Listings") fetchListings();
-  }, [tab, contact.name, contact.phone]);
 
-  useEffect(() => { setTag(contact.agent_tags ? contact.agent_tags.split(',') : []); }, [contact.agent_tags]);
+    if (tab === "Listings" || tab === "Overview") {
+      fetchContactData();
+    }
+  }, [tab, currentContact, contact]); // Added contact prop to dependencies for safety, though currentContact should reflect it
 
   const handleTagSave = async (newTags: string[]) => {
     setUpdatingTag(true);
     await supabase
       .from('listings')
       .update({ agent_tags: newTags.length ? newTags.join(',') : null })
-      .eq('agent_name', contact.name)
-      .eq('agent_phone', contact.phone);
+      .eq('agent_name', currentContact.name)
+      .eq('agent_phone', currentContact.phone);
     setTag(newTags);
     if (onTagChange) onTagChange(newTags);
     setUpdatingTag(false);
@@ -78,13 +172,13 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
     const { error } = await supabase
       .from('listings')
       .update({ agent_email: emailValue })
-      .eq('agent_name', contact.name)
-      .eq('agent_phone', contact.phone);
+      .eq('agent_name', currentContact.name)
+      .eq('agent_phone', currentContact.phone);
     if (error) {
       setEmailError('Failed to update email.');
     } else {
       setEditingEmail(false);
-      contact.email = emailValue;
+      currentContact.email = emailValue;
     }
     setSavingEmail(false);
   };
@@ -102,14 +196,14 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <div className="h-14 w-14 rounded-full bg-gray-200 dark:bg-zinc-800 flex items-center justify-center text-2xl font-bold">
-            {contact.name[0]}
+            {currentContact.name[0]}
           </div>
           <div className="flex-1">
             <div className="text-xl font-semibold text-gray-900 dark:text-zinc-100 flex items-center gap-2">
-              {contact.name}
-              {contact.favorite && <Star className="h-5 w-5 text-yellow-400" fill="#facc15" />}
+              {currentContact.name}
+              {currentContact.favorite && <Star className="h-5 w-5 text-yellow-400" fill="#facc15" />}
             </div>
-            <div className="text-gray-500 dark:text-zinc-400">{contact.brokerage}</div>
+            <div className="text-gray-500 dark:text-zinc-400">{currentContact.brokerage}</div>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}><X className="h-6 w-6" /></Button>
         </div>
@@ -124,8 +218,8 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
               const { data } = await supabase
                 .from('listings')
                 .select('id, property_address, property_city')
-                .eq('agent_name', contact.name)
-                .eq('agent_phone', contact.phone);
+                .eq('agent_name', currentContact.name)
+                .eq('agent_phone', currentContact.phone);
               setEmailListings(data || []);
               setEmailModalOpen(true);
             }}
@@ -142,8 +236,8 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
               const { data } = await supabase
                 .from('listings')
                 .select('id, property_address, property_city')
-                .eq('agent_name', contact.name)
-                .eq('agent_phone', contact.phone);
+                .eq('agent_name', currentContact.name)
+                .eq('agent_phone', currentContact.phone);
               setSmsListings(data || []);
               setSmsModalOpen(true);
             }}
@@ -156,9 +250,9 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
             size="icon"
             className="bg-gray-600 hover:bg-gray-700 text-white w-10 h-10 p-0 rounded-full"
             onClick={() => {
-              const searchQuery = contact.email
-                ? `${contact.email}`
-                : `${contact.name} ${contact.brokerage || ''} real estate agent Contact Email`;
+              const searchQuery = currentContact.email
+                ? `${currentContact.email}`
+                : `${currentContact.name} ${currentContact.brokerage || ''} real estate agent Contact Email`;
               window.open(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, '_blank');
             }}
             title="Google Search Email"
@@ -199,13 +293,13 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
                     <Button size="sm" onClick={handleEmailSave} disabled={savingEmail || !emailValue}>
                       {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => { setEditingEmail(false); setEmailValue(contact.email || ""); }}>
+                    <Button size="sm" variant="ghost" onClick={() => { setEditingEmail(false); setEmailValue(currentContact.email || ""); }}>
                       Cancel
                     </Button>
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700 dark:text-zinc-200">{contact.email || <span className="italic text-gray-400">No email</span>}</span>
+                    <span className="text-sm text-gray-700 dark:text-zinc-200">{currentContact.email || <span className="italic text-gray-400">No email</span>}</span>
                     <Button size="sm" variant="ghost" onClick={() => setEditingEmail(true)}>
                       <Edit2 className="h-4 w-4" />
                     </Button>
@@ -213,9 +307,9 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
                 )}
                 {emailError && <div className="text-xs text-red-600 mt-1">{emailError}</div>}
               </div>
-              {contact.phone && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">{contact.phone}</div>}
-              {contact.brokerage && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">{contact.brokerage}</div>}
-              {contact.instagram && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">Instagram: {contact.instagram}</div>}
+              {currentContact.phone && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">{currentContact.phone}</div>}
+              {currentContact.brokerage && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">{currentContact.brokerage}</div>}
+              {currentContact.instagram && <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1">Instagram: {currentContact.instagram}</div>}
               {tag.length ? <div className="text-sm text-gray-700 dark:text-zinc-200 mb-1 flex flex-col gap-1">{tag.map(t => <span key={t} className={`px-2 py-0.5 rounded-full text-xs font-medium ${TAG_COLORS[t] || 'bg-gray-300 text-black'}`}>{t}</span>)}</div> : <div className="text-sm text-gray-400 dark:text-zinc-500 mb-1">Tag: No tag</div>}
               {/* Add more fields as needed */}
             </div>
@@ -224,22 +318,22 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
               <h2 className="text-lg font-semibold mb-2">Activity Summary</h2>
               <div className="flex items-center justify-between mb-2">
                 <span>Active Listings</span>
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-black dark:bg-zinc-200 text-white dark:text-zinc-900">{contact.listings}</span>
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-black dark:bg-zinc-200 text-white dark:text-zinc-900">{currentContact.listings}</span>
               </div>
               <div className="flex items-center justify-between mb-2">
                 <span>Last Contact</span>
-                <span className="text-sm">{contact.lastContact}</span>
+                <span className="text-sm">{currentContact.lastContact}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Total Interactions</span>
                 <span className="text-sm">{
                   (() => {
                     let logs = [];
-                    if (Array.isArray(contact.contact_logs)) {
-                      logs = contact.contact_logs;
-                    } else if (typeof contact.contact_logs === 'string' && contact.contact_logs.trim().length > 0) {
+                    if (Array.isArray(currentContact.contact_logs)) {
+                      logs = currentContact.contact_logs;
+                    } else if (typeof currentContact.contact_logs === 'string' && currentContact.contact_logs.trim().length > 0) {
                       try {
-                        logs = JSON.parse(contact.contact_logs);
+                        logs = JSON.parse(currentContact.contact_logs);
                       } catch {
                         logs = [];
                       }
@@ -280,11 +374,11 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
             <h2 className="text-lg font-semibold mb-4 text-center">Contact History</h2>
             {(() => {
               let logs = [];
-              if (Array.isArray(contact.contact_logs)) {
-                logs = contact.contact_logs;
-              } else if (typeof contact.contact_logs === 'string' && contact.contact_logs.trim().length > 0) {
+              if (Array.isArray(currentContact.contact_logs)) {
+                logs = currentContact.contact_logs;
+              } else if (typeof currentContact.contact_logs === 'string' && currentContact.contact_logs.trim().length > 0) {
                 try {
-                  logs = JSON.parse(contact.contact_logs);
+                  logs = JSON.parse(currentContact.contact_logs);
                 } catch {
                   logs = [];
                 }
@@ -343,8 +437,8 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
         <EmailTemplateModal
           isOpen={emailModalOpen}
           onClose={() => setEmailModalOpen(false)}
-          agentName={contact.name}
-          agentEmail={contact.email || ''}
+          agentName={currentContact.name}
+          agentEmail={currentContact.email || ''}
           propertyAddress={''}
           town={''}
           listings={emailListings}
@@ -354,8 +448,8 @@ export default function ContactDetailsModal({ contact, onClose, onTagChange, ini
         <SmsTemplateModal
           isOpen={smsModalOpen}
           onClose={() => setSmsModalOpen(false)}
-          agentName={contact.name}
-          agentPhone={contact.phone || ''}
+          agentName={currentContact.name}
+          agentPhone={currentContact.phone || ''}
           listings={smsListings}
         />
       )}

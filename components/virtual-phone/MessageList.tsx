@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Contact as BaseContact } from './VirtualPhoneInterface'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
-import { Search } from 'lucide-react'
+import { Search, Loader2, AlertCircle } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import SmsTemplateModal from '@/components/sms-template-modal'
 import { supabase } from '@/lib/supabase'
@@ -43,6 +43,8 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
   const [smsModalOpen, setSmsModalOpen] = useState(false)
   const [smsContact, setSmsContact] = useState<Contact | null>(null)
   const [smsListings, setSmsListings] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const TWILIO_PHONE = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || ''
 
@@ -59,18 +61,36 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
 
   useEffect(() => {
     const fetchAgents = async () => {
-      const res = await fetch('/api/contacts')
-      const data = await res.json()
-      if (data.contacts) {
-        // Deduplicate by normalized agent_phone, prefer non-empty agent_name
-        const uniqueAgents: { [phone: string]: string } = {}
-        data.contacts.forEach((a: any) => {
-          const phone = normalizePhone(a.agent_phone)
-          if (phone && (!uniqueAgents[phone] || (a.agent_name && a.agent_name.trim()))) {
-            uniqueAgents[phone] = a.agent_name?.trim() || phone
-          }
-        })
-        setAgents(Object.entries(uniqueAgents).map(([agent_phone, agent_name]) => ({ agent_phone, agent_name })))
+      try {
+        console.log('Fetching agents...')
+        const res = await fetch('/api/contacts')
+        
+        if (!res.ok) {
+          throw new Error(`Failed to fetch agents: ${res.status} ${res.statusText}`)
+        }
+        
+        const data = await res.json()
+        console.log('Agents response:', data)
+        
+        if (data.error) {
+          throw new Error(data.error)
+        }
+        
+        if (data.contacts) {
+          // Deduplicate by normalized agent_phone, prefer non-empty agent_name
+          const uniqueAgents: { [phone: string]: string } = {}
+          data.contacts.forEach((a: any) => {
+            const phone = normalizePhone(a.agent_phone)
+            if (phone && (!uniqueAgents[phone] || (a.agent_name && a.agent_name.trim()))) {
+              uniqueAgents[phone] = a.agent_name?.trim() || phone
+            }
+          })
+          setAgents(Object.entries(uniqueAgents).map(([agent_phone, agent_name]) => ({ agent_phone, agent_name })))
+          console.log('Processed agents:', Object.keys(uniqueAgents).length)
+        }
+      } catch (err) {
+        console.error('Error fetching agents:', err)
+        setError(err instanceof Error ? err.message : 'Failed to fetch agents')
       }
     }
     fetchAgents()
@@ -78,44 +98,79 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
 
   useEffect(() => {
     const fetchContacts = async () => {
-      const res = await fetch('/api/messages?contact=all')
-      const data = await res.json()
-      const messages = data.contacts || data.messages; // support both keys
-      if (messages) {
-        // Map Twilio message to Contact type, using agent name if available
-        const mapped: Contact[] = messages.map((msg: any, idx: number) => {
-          // Determine the other party (not your own Twilio number)
-          const otherPhoneRaw = msg.from === TWILIO_PHONE ? msg.to : msg.from
-          const otherPhone = normalizePhone(otherPhoneRaw)
-          if (otherPhone === normalizePhone(TWILIO_PHONE)) return null // skip self
-          const agent = agents.find(a => normalizePhone(a.agent_phone) === otherPhone)
-          // Determine if the last message was received (inbound)
-          const isReceived = msg.direction && msg.direction.startsWith('inbound');
-          // Use a stable message ID: sid if available, else timestamp string, else idx
-          let stableId: string
-          if (msg.sid) {
-            stableId = msg.sid
-          } else if (msg.dateSent) {
-            stableId = new Date(msg.dateSent).getTime().toString()
-          } else {
-            stableId = idx.toString()
-          }
-          return {
-            id: otherPhone + idx,
-            name: agent ? agent.agent_name : otherPhone, // fallback to normalized phone
-            phone: otherPhone, // always normalized
-            lastMessage: msg.body,
-            lastMessageTime: new Date(msg.dateSent).toLocaleString(),
-            isReceived,
-            lastMessageId: stableId,
-            lastMessageDirection: msg.direction,
-          }
-        }).filter(Boolean)
-        setContacts(mapped)
+      try {
+        console.log('Fetching contacts/messages...')
+        setLoading(true)
+        setError(null)
+        
+        const res = await fetch('/api/messages?contact=all')
+        
+        if (!res.ok) {
+          throw new Error(`Failed to fetch messages: ${res.status} ${res.statusText}`)
+        }
+        
+        const data = await res.json()
+        console.log('Messages response:', data)
+        
+        if (data.error) {
+          throw new Error(data.error)
+        }
+        
+        const messages = data.contacts || data.messages; // support both keys
+        if (messages && Array.isArray(messages)) {
+          console.log('Processing', messages.length, 'messages')
+          
+                     // Map Twilio message to Contact type, using agent name if available
+           const mapped: Contact[] = messages
+             .map((msg: any, idx: number) => {
+               // Determine the other party (not your own Twilio number)
+               const otherPhoneRaw = msg.from === TWILIO_PHONE ? msg.to : msg.from
+               const otherPhone = normalizePhone(otherPhoneRaw)
+               if (otherPhone === normalizePhone(TWILIO_PHONE)) return null // skip self
+               const agent = agents.find(a => normalizePhone(a.agent_phone) === otherPhone)
+               // Determine if the last message was received (inbound)
+               const isReceived = msg.direction && msg.direction.startsWith('inbound');
+               // Use a stable message ID: sid if available, else timestamp string, else idx
+               let stableId: string
+               if (msg.sid) {
+                 stableId = msg.sid
+               } else if (msg.dateSent) {
+                 stableId = new Date(msg.dateSent).getTime().toString()
+               } else {
+                 stableId = idx.toString()
+               }
+               return {
+                 id: otherPhone + idx,
+                 name: agent ? agent.agent_name : otherPhone, // fallback to normalized phone
+                 phone: otherPhone, // always normalized
+                 lastMessage: msg.body || '',
+                 lastMessageTime: new Date(msg.dateSent).toLocaleString(),
+                 isReceived,
+                 lastMessageId: stableId,
+                 lastMessageDirection: msg.direction,
+               } as Contact
+             })
+             .filter((contact): contact is Contact => contact !== null)
+           
+           console.log('Mapped contacts:', mapped.length)
+           setContacts(mapped)
+        } else {
+          console.log('No messages found in response')
+          setContacts([])
+        }
+      } catch (err) {
+        console.error('Error fetching contacts:', err)
+        setError(err instanceof Error ? err.message : 'Failed to fetch messages')
+      } finally {
+        setLoading(false)
       }
     }
-    fetchContacts()
-  }, [agents])
+    
+    // Only fetch contacts after agents are loaded
+    if (agents.length > 0 || agents.length === 0) {
+      fetchContacts()
+    }
+  }, [agents, TWILIO_PHONE])
 
   const filteredContacts = contacts.filter(contact => 
     contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -253,7 +308,22 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
       </div>
       
       <div className="overflow-y-auto flex-1 bg-white dark:bg-zinc-900">
-        {sortedContacts.slice(0, visibleCount).map(contact => (
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span className="ml-2">Loading messages...</span>
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-32 text-red-500">
+            <AlertCircle className="h-6 w-6" />
+            <span className="ml-2">{error}</span>
+          </div>
+        ) : contacts.length === 0 ? (
+          <div className="flex items-center justify-center h-32 text-gray-500">
+            <span>No messages found</span>
+          </div>
+        ) : (
+          sortedContacts.slice(0, visibleCount).map(contact => (
           <div 
             key={contact.id}
             className="border-b dark:border-zinc-800 p-4 hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
@@ -302,8 +372,9 @@ export default function MessageList({ onSelectContact }: MessageListProps) {
               </div>
             </div>
           </div>
-        ))}
-        {visibleCount < sortedContacts.length && (
+          ))
+        )}
+        {!loading && !error && visibleCount < sortedContacts.length && (
           <div className="flex justify-center py-4">
             <button
               className="px-6 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 shadow"

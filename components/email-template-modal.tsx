@@ -69,6 +69,43 @@ Thanks,
 Cooper
 RePhotos.ca`,
   },
+  {
+    id: "pricing",
+    name: "Pricing",
+    subject: "Professional Real Estate Media Packages",
+    body: `Hi {FirstName},
+
+I'm Cooper, and I help agents and home owners showcase their listings with professional photography and media that gets results.
+
+Here's what sets us apart:
+
+- Every photo is part of the story we tell
+- Designed to bring out each home's best features
+- No hidden fees. What you see is what you pay
+- Photos delivered in 24 hours, videos in 48-72 hours
+
+Package Options:
+ESSENTIAL – $229.99 HDR Photography + 1-2 aerial photos • Perfect for condos and standard listings.
+
+PREMIUM – $489.99 HDR photos + 360° virtual tour + 2-3 drone aerials + floor plans • Great for detached homes and larger properties.
+
+COMPLETE – $829.99 Photos + customizable video (choose between landscape or vertical orientation to fit your marketing needs) + 3-5 drone aerials + 360° virtual tour + twilight shots + more • Ideal for luxury listings and competitive markets.
+
+All packages can be customized with floor plans, virtual staging, and additional video content.
+
+Where we work:
+Milton, Oakville, Burlington, Brampton, Hamilton, Guelph, Cambridge, Kitchener, Waterloo, Halton-Hills
+
+Get Started Today:
+See my work: rephotos.ca/portfolio
+Book online: rephotos.ca/book-now
+Questions? Just reply to this email or call/text 905-299-9300
+
+I'm here to make your listings shine and sell faster. What property are you working on next?
+
+Best, Cooper Thompson
+RePhotos | 905-299-9300 | rephotos.ca`,
+  },
 ]
 
 interface EmailTemplate {

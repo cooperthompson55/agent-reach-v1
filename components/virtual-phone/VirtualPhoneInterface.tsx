@@ -4,7 +4,7 @@ import { useState } from 'react'
 import MessageList from './MessageList'
 import ConversationView from './ConversationView'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Settings } from 'lucide-react'
 
 export type Contact = {
   id: string
@@ -29,9 +29,23 @@ export type Message = {
 
 export default function VirtualPhoneInterface() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+  const [showDebug, setShowDebug] = useState(false)
+  const [debugResult, setDebugResult] = useState<any>(null)
 
   const handleBackToList = () => {
     setSelectedContact(null)
+  }
+
+  const runDiagnostic = async () => {
+    try {
+      const response = await fetch('/api/twilio-test')
+      const result = await response.json()
+      setDebugResult(result)
+      console.log('Diagnostic result:', result)
+    } catch (error) {
+      setDebugResult({ error: error instanceof Error ? error.message : 'Unknown error' })
+      console.error('Diagnostic error:', error)
+    }
   }
 
   return (
@@ -57,7 +71,34 @@ export default function VirtualPhoneInterface() {
         <div className="flex flex-col flex-1 h-full">
           <div className="flex items-center justify-between p-4 border-b dark:border-zinc-800">
             <h2 className="text-xl font-semibold">Messages</h2>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowDebug(!showDebug)}
+              className="flex items-center gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Debug
+            </Button>
           </div>
+
+          {showDebug && (
+            <div className="p-4 border-b dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Button onClick={runDiagnostic} size="sm">
+                  Test Twilio Connection
+                </Button>
+              </div>
+              {debugResult && (
+                <div className="mt-2 p-2 bg-white dark:bg-zinc-900 rounded border text-xs">
+                  <pre className="whitespace-pre-wrap">
+                    {JSON.stringify(debugResult, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex-1 overflow-hidden">
             <MessageList onSelectContact={setSelectedContact} />
           </div>

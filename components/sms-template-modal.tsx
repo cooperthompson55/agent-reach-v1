@@ -39,6 +39,11 @@ const smsTemplates = [
   name: "No Response",
   body: "Let me know if you ever need pricing or want to check out my full list of services. Always around if you need help with a listing in {Town}"
 },
+{
+  id: "quick-question",
+  name: "Quick Question",
+  body: "Hey {FirstName}, any new listings this week in {Town} you need photos for?"
+},
 ]
 
 interface SmsTemplate {

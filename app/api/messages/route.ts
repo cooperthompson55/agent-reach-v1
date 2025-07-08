@@ -4,7 +4,21 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID!;
 const authToken = process.env.TWILIO_AUTH_TOKEN!;
 const fromPhone = process.env.TWILIO_PHONE_NUMBER!;
 
-const twilio = require('twilio')(accountSid, authToken);
+// Validate environment variables
+if (!accountSid || !authToken || !fromPhone) {
+  console.error('Missing required Twilio environment variables:', {
+    accountSid: !!accountSid,
+    authToken: !!authToken,
+    fromPhone: !!fromPhone
+  });
+}
+
+let twilio: any;
+try {
+  twilio = require('twilio')(accountSid, authToken);
+} catch (error) {
+  console.error('Failed to initialize Twilio client:', error);
+}
 
 // GET /api/messages?contact=+1234567890&before=...&limit=...
 export async function GET(request: Request) {
@@ -17,12 +31,35 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing contact parameter' }, { status: 400 });
   }
 
+  // Check if Twilio is properly configured
+  if (!accountSid || !authToken || !fromPhone || !twilio) {
+    console.error('Twilio configuration missing:', {
+      accountSid: !!accountSid,
+      authToken: !!authToken,
+      fromPhone: !!fromPhone,
+      twilioClient: !!twilio
+    });
+    return NextResponse.json({ 
+      error: 'Twilio configuration is incomplete. Please check environment variables.',
+      details: {
+        accountSid: !!accountSid,
+        authToken: !!authToken,
+        fromPhone: !!fromPhone,
+        twilioClient: !!twilio
+      }
+    }, { status: 500 });
+  }
+
   if (contact === 'all') {
     try {
+      console.log('Fetching all messages from Twilio...');
       // Fetch recent messages (limit 2000 for performance)
       const messages = await twilio.messages.list({
         limit: 2000,
       });
+      
+      console.log(`Fetched ${messages.length} messages from Twilio`);
+      
       // Group by contact (other party in the conversation)
       const contactMap = new Map();
       messages.forEach((msg: any) => {
@@ -32,11 +69,19 @@ export async function GET(request: Request) {
           contactMap.set(other, msg);
         }
       });
+      
       // Return as array
       const contacts = Array.from(contactMap.values());
+      console.log(`Grouped into ${contacts.length} unique contacts`);
+      
       return NextResponse.json({ contacts });
     } catch (error: any) {
-      return NextResponse.json({ error: error.message || 'Failed to fetch contacts' }, { status: 500 });
+      console.error('Twilio API error:', error);
+      return NextResponse.json({ 
+        error: error.message || 'Failed to fetch contacts',
+        twilioError: true,
+        details: error.code || error.status || 'Unknown error'
+      }, { status: 500 });
     }
   }
 
@@ -75,6 +120,11 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ messages: allMessages, hasMore, nextCursor });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to fetch messages' }, { status: 500 });
+    console.error('Twilio API error:', error);
+    return NextResponse.json({ 
+      error: error.message || 'Failed to fetch messages',
+      twilioError: true,
+      details: error.code || error.status || 'Unknown error'
+    }, { status: 500 });
   }
 } 

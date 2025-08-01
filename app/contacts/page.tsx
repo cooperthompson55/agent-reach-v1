@@ -717,7 +717,6 @@ export default function ContactsPage() {
                           e.stopPropagation();
                           navigator.clipboard.writeText(contact.name);
                           setCopiedId(contact.id);
-                          setTimeout(() => setCopiedId(null), 2000);
                         }}
                         title="Copy name"
                       >

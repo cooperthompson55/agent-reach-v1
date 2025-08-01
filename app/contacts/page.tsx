@@ -3,7 +3,7 @@ import React from "react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Filter, MoreHorizontal, Trash2, Edit2, Eye, ChevronLeft, ChevronRight, Check, Loader2, MessageSquare, Mail, Search } from "lucide-react";
+import { Plus, Filter, MoreHorizontal, Trash2, Edit2, Eye, ChevronLeft, ChevronRight, Check, Loader2, MessageSquare, Mail, Search, Copy, CheckCircle2 } from "lucide-react";
 import ContactDetailsModal from "@/components/contacts/ContactDetailsModal";
 import {
   DropdownMenu,
@@ -96,6 +96,7 @@ export default function ContactsPage() {
   const [bulkSmsListings, setBulkSmsListings] = useState<any[]>([]);
   const [bulkSmsAgentListingsMap, setBulkSmsAgentListingsMap] = useState<Record<string, any[]>>({});
   const [newMessagesCount, setNewMessagesCount] = useState<number>(0);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Filter contacts by search term
   const filteredContacts = React.useMemo(() => {
@@ -428,6 +429,33 @@ export default function ContactsPage() {
     <div className="w-full py-8 px-4 md:px-8">
       {/* <h1 className="text-4xl font-bold mb-2">Lead Manager</h1> */}
       <h1 className="text-4xl font-bold mb-2">Contacts</h1>
+      
+      {/* Stats Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
+          <div className="text-sm text-gray-500 dark:text-zinc-400">Total Agents</div>
+          <div className="text-2xl font-bold mt-1">12,047</div>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
+          <div className="text-sm text-gray-500 dark:text-zinc-400">Called Today</div>
+          <div className="text-2xl font-bold mt-1">0/200</div>
+          <div className="text-xs text-gray-400 dark:text-zinc-500">Daily Goal</div>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
+          <div className="text-sm text-gray-500 dark:text-zinc-400">Callbacks Scheduled</div>
+          <div className="text-2xl font-bold mt-1">5</div>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
+          <div className="text-sm text-gray-500 dark:text-zinc-400">Booked This Week</div>
+          <div className="text-2xl font-bold mt-1">2</div>
+          <div className="text-xs text-gray-400 dark:text-zinc-500">Shoots</div>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
+          <div className="text-sm text-gray-500 dark:text-zinc-400">Conversion Rate</div>
+          <div className="text-2xl font-bold mt-1">3.2%</div>
+        </div>
+      </div>
+
       <div className="text-gray-500 dark:text-zinc-400 mb-4">
         Total Contacts: {filteredContacts.length}
         <span className="ml-4 text-blue-600 dark:text-blue-400 font-semibold">New Messages: {newMessagesCount}</span>
@@ -681,6 +709,24 @@ export default function ContactsPage() {
                     <div className="font-semibold text-gray-900 dark:text-zinc-100 flex items-center gap-1">
                       {contact.name}
                       {contact.favorite && <span title="Favorite" className="text-yellow-400 ml-1">★</span>}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 ml-1 hover:bg-gray-100 dark:hover:bg-zinc-800"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(contact.name);
+                          setCopiedId(contact.id);
+                          setTimeout(() => setCopiedId(null), 2000);
+                        }}
+                        title="Copy name"
+                      >
+                        {copiedId === contact.id ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5 text-gray-500 dark:text-zinc-400" />
+                        )}
+                      </Button>
                     </div>
                     <div className="text-xs text-gray-500 dark:text-zinc-400">{contact.email}</div>
                   </div>

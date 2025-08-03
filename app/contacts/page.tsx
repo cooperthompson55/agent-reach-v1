@@ -3,7 +3,7 @@ import React from "react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Filter, MoreHorizontal, Trash2, Edit2, Eye, ChevronLeft, ChevronRight, Check, Loader2, MessageSquare, Mail, Search, Copy, CheckCircle2 } from "lucide-react";
+import { Plus, Filter, MoreHorizontal, Trash2, Edit2, Eye, ChevronLeft, ChevronRight, Check, Loader2, MessageSquare, Mail, Search, Copy, CheckCircle2, Calendar as CalendarIcon } from "lucide-react";
 import ContactDetailsModal from "@/components/contacts/ContactDetailsModal";
 import {
   DropdownMenu,
@@ -14,6 +14,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from '@/lib/supabase'; // Corrected import path
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import SmsTemplateModal from '@/components/sms-template-modal';
 import EmailTemplateModal from '@/components/email-template-modal';
 
@@ -26,6 +30,7 @@ interface Contact {
   brokerage?: string; // brokerage_name - optional
   instagram?: string; // instagram_account - optional
   listings: number; // Count of listings per agent
+  listing_dates: Date[]; // Array of listing dates
   lastContact: string; // Default or placeholder
   avatar: string; // First letter of name or placeholder
   favorite: boolean; // Default to false
@@ -87,6 +92,10 @@ export default function ContactsPage() {
   const [emailContact, setEmailContact] = useState<Contact | null>(null);
   const [emailListings, setEmailListings] = useState<any[]>([]);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
@@ -98,7 +107,7 @@ export default function ContactsPage() {
   const [newMessagesCount, setNewMessagesCount] = useState<number>(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Filter contacts by search term
+  // Filter contacts by search term, tags, status, and date range
   const filteredContacts = React.useMemo(() => {
     let result = contacts;
     if (searchTerm.trim()) {
@@ -118,8 +127,23 @@ export default function ContactsPage() {
     if (filterStatus) {
       result = result.filter(contact => (contact.agent_status || 'Not Contacted') === filterStatus);
     }
+    // Filter by date range
+    if (dateRange.from || dateRange.to) {
+      result = result.filter(contact => {
+        return contact.listing_dates.some(listingDate => {
+          if (dateRange.from && dateRange.to) {
+            return listingDate >= dateRange.from && listingDate <= dateRange.to;
+          } else if (dateRange.from) {
+            return listingDate >= dateRange.from;
+          } else if (dateRange.to) {
+            return listingDate <= dateRange.to;
+          }
+          return true;
+        });
+      });
+    }
     return result;
-  }, [contacts, searchTerm, filterTags, filterStatus]);
+  }, [contacts, searchTerm, filterTags, filterStatus, dateRange]);
 
   // Sort by listings or interactions
   const sortedContacts = React.useMemo(() => {
@@ -210,7 +234,7 @@ export default function ContactsPage() {
     setRefreshMessage(null);
     const { data: listingsData, error } = await supabase
       .from('listings')
-      .select('agent_name, agent_email, agent_phone, brokerage_name, instagram_account, property_address, property_city, agent_tags, agent_status, contact_logs, created_at');
+      .select('agent_name, agent_email, agent_phone, brokerage_name, instagram_account, property_address, property_city, agent_tags, agent_status, contact_logs, created_at, listing_date');
 
     if (error) {
       console.error('Error fetching listings:', error);
@@ -271,23 +295,29 @@ export default function ContactsPage() {
         if (isNew) newListingMap.set(agentKey, true);
         // Count unique addresses
         const addresses = new Set((listings.map((l: any) => l.property_address).filter(Boolean)) as string[]);
+          // Get all listing dates for this agent
+          const listingDates = listings
+            .map(l => l.listing_date ? new Date(l.listing_date) : null)
+            .filter((d): d is Date => d !== null);
+
           agentMap.set(agentKey, {
             contact: {
               id: agentKey,
-            name: firstListing.agent_name || 'N/A',
-            email: firstListing.agent_email || '',
-            phone: firstListing.agent_phone,
-            brokerage: firstListing.brokerage_name,
-            instagram: firstListing.instagram_account,
-            listings: addresses.size,
+              name: firstListing.agent_name || 'N/A',
+              email: firstListing.agent_email || '',
+              phone: firstListing.agent_phone,
+              brokerage: firstListing.brokerage_name,
+              instagram: firstListing.instagram_account,
+              listings: addresses.size,
+              listing_dates: listingDates,
               lastContact: 'N/A',
-            avatar: firstListing.agent_name ? firstListing.agent_name[0].toUpperCase() : '?',
+              avatar: firstListing.agent_name ? firstListing.agent_name[0].toUpperCase() : '?',
               favorite: false,
-            agent_tags: Array.from(allTags).join(',') || null,
-            agent_status: lockedStatuses.includes(status) ? firstListing.agent_status : status,
-            contact_logs: firstListing.contact_logs || [],
+              agent_tags: Array.from(allTags).join(',') || null,
+              agent_status: lockedStatuses.includes(status) ? firstListing.agent_status : status,
+              contact_logs: firstListing.contact_logs || [],
             },
-          addresses,
+            addresses,
           });
       });
       // After collecting all contacts, aggregate tags only (do not add/remove 'New' here)
@@ -477,6 +507,48 @@ export default function ContactsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="p-4 min-w-[220px]">
+            <div className="mb-4">
+              <div className="font-semibold text-xs mb-2">Listing Date Range</div>
+              <div className="flex flex-col gap-2">
+                <div className="grid gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !dateRange.from && !dateRange.to && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateRange.from ? (
+                          dateRange.to ? (
+                            <>
+                              {format(dateRange.from, "LLL dd, y")} -{" "}
+                              {format(dateRange.to, "LLL dd, y")}
+                            </>
+                          ) : (
+                            format(dateRange.from, "LLL dd, y")
+                          )
+                        ) : (
+                          <span>Pick a date range</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={dateRange.from}
+                        selected={{ from: dateRange.from, to: dateRange.to }}
+                        onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
+                        numberOfMonths={2}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </div>
             <div className="mb-2">
               <div className="font-semibold text-xs mb-1">Status</div>
               <div className="flex flex-col gap-1 mb-2">
@@ -517,8 +589,12 @@ export default function ContactsPage() {
                 ))}
               </div>
             </div>
-            {(filterTags.length > 0 || filterStatus) && (
-              <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => { setFilterTags([]); setFilterStatus(null); }}>
+            {(filterTags.length > 0 || filterStatus || dateRange.from || dateRange.to) && (
+              <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => { 
+                setFilterTags([]); 
+                setFilterStatus(null);
+                setDateRange({ from: undefined, to: undefined });
+              }}>
                 Clear Filters
               </Button>
             )}
@@ -629,9 +705,10 @@ export default function ContactsPage() {
               for (const contact of selected) {
                 const { data } = await supabase
                   .from('listings')
-                  .select('id, property_address, property_city, agent_name, agent_phone')
+                  .select('id, property_address, property_city, agent_name, agent_phone, created_at')
                   .eq('agent_name', contact.name)
-                  .eq('agent_phone', contact.phone);
+                  .eq('agent_phone', contact.phone)
+                  .order('created_at', { ascending: false });
                 if (data) {
                   allListings = allListings.concat(data);
                   agentListingsMap[`${contact.name}|${contact.phone}`] = data;

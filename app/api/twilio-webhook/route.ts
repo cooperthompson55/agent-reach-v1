@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
+import { Resend } from 'resend';
 const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
@@ -39,8 +43,29 @@ export async function POST(request: Request) {
           .eq('id', listing.id);
       }
     }
-    // For now, just log the message. You can extend this to store in DB, etc.
-    console.log('Incoming SMS:', { from, to, body });
+    // Send email notification
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+      const virtualPhoneUrl = `${baseUrl}/virtual-phone`;
+      
+      await resend.emails.send({
+        from: 'Cooper Thompson <cooper@rephotos.ca>',
+        to: ['cooperthompson55955@gmail.com'],
+        subject: 'New Message Received',
+        text: `New message received from ${from}:\n\n${body}\n\nClick here to view and reply: ${virtualPhoneUrl}`,
+        html: `
+          <h2>New Message Received</h2>
+          <p><strong>From:</strong> ${from}</p>
+          <p><strong>Message:</strong></p>
+          <p style="padding: 10px; background: #f5f5f5; border-radius: 4px;">${body}</p>
+          <p><a href="${virtualPhoneUrl}" style="display: inline-block; padding: 10px 20px; background-color: #0070f3; color: white; text-decoration: none; border-radius: 5px;">View and Reply</a></p>
+        `
+      });
+    } catch (emailError) {
+      console.error('Failed to send email notification:', emailError);
+      // Don't throw the error - we still want to acknowledge the SMS
+    }
+
     return new Response('<Response></Response>', { headers: { 'Content-Type': 'text/xml' } });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to process webhook' }, { status: 500 });

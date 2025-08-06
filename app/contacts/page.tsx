@@ -1,5 +1,6 @@
 "use client"
 import React from "react";
+import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,9 +73,19 @@ const STATUS_COLORS: Record<string, string> = {
   'Not Interested': 'bg-gray-700 text-white',
   'Client': 'bg-purple-900 text-white',
   'Bad Lead': 'bg-red-900 text-white',
-};
+  };
 
-export default function ContactsPage() {
+  // Phone normalization function
+  function normalizePhone(phone: string): string {
+    if (!phone) return '';
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 10) return '+1' + digits;
+    if (digits.length === 11 && digits.startsWith('1')) return '+' + digits;
+    return '+' + digits;
+  }
+  
+  export default function ContactsPage() {
+    const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [page, setPage] = useState(1);
@@ -106,6 +117,8 @@ export default function ContactsPage() {
   const [bulkSmsAgentListingsMap, setBulkSmsAgentListingsMap] = useState<Record<string, any[]>>({});
   const [newMessagesCount, setNewMessagesCount] = useState<number>(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [latestMessage, setLatestMessage] = useState<any>(null);
+  const [messageLoading, setMessageLoading] = useState(true);
 
   // Filter contacts by search term, tags, status, and date range
   const filteredContacts = React.useMemo(() => {
@@ -392,6 +405,42 @@ export default function ContactsPage() {
     fetchNewMessagesCount();
   }, []);
 
+  // Fetch latest incoming message from virtual phone
+  useEffect(() => {
+    const fetchLatestMessage = async () => {
+      try {
+        const res = await fetch('/api/messages?contact=all');
+        const data = await res.json();
+        if (data.contacts && data.contacts.length > 0) {
+          // Find the most recent incoming message across all contacts
+          let latestIncomingMessage = null;
+          let latestTimestamp = 0;
+          
+          for (const message of data.contacts) {
+            // Check if this is an incoming message
+            if (message.direction && message.direction.startsWith('inbound')) {
+              const messageTime = new Date(message.dateSent).getTime();
+              if (messageTime > latestTimestamp) {
+                latestTimestamp = messageTime;
+                latestIncomingMessage = message;
+              }
+            }
+          }
+          
+          setLatestMessage(latestIncomingMessage);
+        }
+      } catch (error) {
+        console.error('Error fetching latest message:', error);
+      } finally {
+        setMessageLoading(false);
+      }
+    };
+    
+    fetchLatestMessage();
+    const interval = setInterval(fetchLatestMessage, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleTagAll = async () => {
     // Fetch all listings
     const { data: allListings, error } = await supabase
@@ -463,26 +512,62 @@ export default function ContactsPage() {
       {/* Stats Dashboard */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
-          <div className="text-sm text-gray-500 dark:text-zinc-400">Total Agents</div>
-          <div className="text-2xl font-bold mt-1">12,047</div>
+          <div className="text-sm text-gray-500 dark:text-zinc-400">Total Contacts</div>
+          <div className="text-2xl font-bold mt-1">{contacts.length}</div>
         </div>
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
-          <div className="text-sm text-gray-500 dark:text-zinc-400">Called Today</div>
-          <div className="text-2xl font-bold mt-1">0/200</div>
-          <div className="text-xs text-gray-400 dark:text-zinc-500">Daily Goal</div>
+          <div className="text-sm text-gray-500 dark:text-zinc-400">New listings</div>
+          <div className="text-2xl font-bold mt-1">{contacts.filter(contact => contact.agent_tags?.includes('New')).length}</div>
         </div>
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
-          <div className="text-sm text-gray-500 dark:text-zinc-400">Callbacks Scheduled</div>
-          <div className="text-2xl font-bold mt-1">5</div>
+          <div className="text-sm text-gray-500 dark:text-zinc-400">Contacted Today</div>
+          <div className="text-2xl font-bold mt-1">
+            {contacts.reduce((count, contact) => {
+              const logs = Array.isArray(contact.contact_logs) ? contact.contact_logs : 
+                (typeof contact.contact_logs === 'string' ? JSON.parse(contact.contact_logs || '[]') : []);
+              const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+              return count + (logs.some(log => 
+                log.type === 'sms' && 
+                new Date(log.timestamp) > last24Hours
+              ) ? 1 : 0);
+            }, 0)}
+          </div>
         </div>
-        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
-          <div className="text-sm text-gray-500 dark:text-zinc-400">Booked This Week</div>
-          <div className="text-2xl font-bold mt-1">2</div>
-          <div className="text-xs text-gray-400 dark:text-zinc-500">Shoots</div>
-        </div>
-        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800">
-          <div className="text-sm text-gray-500 dark:text-zinc-400">Conversion Rate</div>
-          <div className="text-2xl font-bold mt-1">3.2%</div>
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl shadow border border-gray-200 dark:border-zinc-800 col-span-2">
+          <div className="text-sm text-gray-500 dark:text-zinc-400 mb-2">Latest Incoming Message</div>
+          {messageLoading ? (
+            <div className="text-sm text-gray-500 dark:text-zinc-400">Loading...</div>
+          ) : !latestMessage ? (
+            <div className="text-sm text-gray-500 dark:text-zinc-400">No incoming messages yet</div>
+          ) : (() => {
+            const otherPhone = latestMessage.from === process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER ? latestMessage.to : latestMessage.from;
+            const normalizedOtherPhone = normalizePhone(otherPhone);
+            
+            // Try to find contact and get their name
+            const contact = contacts.find(c => normalizePhone(c.phone || '') === normalizedOtherPhone);
+            const contactName = contact?.name || 'Unknown Contact';
+            
+            return (
+              <>
+                <div className="text-sm font-medium mb-1">{contactName}</div>
+                <div className="text-sm text-gray-600 dark:text-zinc-300 mb-2 line-clamp-2">
+                  {latestMessage.body}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-gray-400 dark:text-zinc-500">
+                    {new Date(latestMessage.dateSent).toLocaleString()}
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => router.push('/virtual-phone')}
+                  >
+                    Reply
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
 

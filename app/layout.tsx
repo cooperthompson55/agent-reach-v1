@@ -4,6 +4,8 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppNavigation } from "@/components/AppNavigation"
 import { ReactNode } from "react"
+import { AuthProvider } from "@/components/AuthContext"
+import { ProtectedLayout } from "@/components/ProtectedLayout"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -26,12 +28,16 @@ export default function RootLayout({ children }: RootLayoutProps) {
           enableSystem
           disableTransitionOnChange
         >
-          <div className="relative flex min-h-screen flex-col">
-            <AppNavigation />
-            <main className="flex-1">
-              {children}
-            </main>
-          </div>
+          <AuthProvider>
+            <ProtectedLayout>
+              <div className="relative flex min-h-screen flex-col">
+                <AppNavigation />
+                <main className="flex-1">
+                  {children}
+                </main>
+              </div>
+            </ProtectedLayout>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
